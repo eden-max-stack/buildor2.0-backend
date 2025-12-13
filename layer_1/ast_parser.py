@@ -72,6 +72,7 @@ def traverse_tree(tree: Tree) -> Generator[Node, None, None]:
             break
 
 tree, root = parse_source(some_random_code)
+print_pretty(root, bytes(some_random_code, "utf8"))
 
 node_names = map(lambda node : node.type, traverse_tree(tree))
 
