@@ -17,9 +17,9 @@ class TreeSitterParser:
 @dataclass
 class ASTNode:
     """internal language-agnostic IR"""
-    id: Optional[int] = None
 
     type: str 
+    id: Optional[int] = None
     children: List["ASTNode"] = field(default_factory=list)
     source_span: Optional[Tuple[int, int]] = None
 

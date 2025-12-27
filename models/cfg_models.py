@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
-from ast_models import ASTNode
+from .ast_models import ASTNode
 
 
 @dataclass
@@ -27,6 +27,18 @@ class CFG:
     def add_node(self, node: CFGNode):
         """Centralized method for adding nodes"""
         self.nodes.append(node)
+
+    def print_pretty(self):
+        print("Control Flow Graph:\n")
+
+        for node in self.nodes:
+            print(f"[{node.id}] {node.label}")
+
+            for edge in node.outgoing:
+                cond = f" [{edge.condition}]" if edge.condition else ""
+                print(f"   └──> [{edge.target.id}] {edge.target.label}{cond}")
+
+            print()
 
 
 class CFGBuilder:
