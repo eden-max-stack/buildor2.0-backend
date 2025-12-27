@@ -20,11 +20,11 @@ class ASTNode:
     id: Optional[int] = None
 
     type: str 
-    children: List["ASTNode"] = field(default_factory=list) # new list is created for each instance (callable executed each time)
+    children: List["ASTNode"] = field(default_factory=list)
     source_span: Optional[Tuple[int, int]] = None
 
     symbol: Optional[str] = None
-    role: Optional[str] = None # updated in ASTBuilder based on context
+    role: Optional[str] = None
     operator: Optional[str] = None
 
     parent: Optional["ASTNode"] = None
@@ -46,12 +46,24 @@ class ASTNode:
         for child in self.children:
             child.print_pretty(indent + 1)
 
-
     def traverse_node(self) -> Generator["ASTNode", None, None]:
-        """Generator — preorder traversal of nodes."""
+        """Generator – preorder traversal of nodes."""
         yield self
         for c in self.children:
-            yield from c.traverse_nodes()
+            yield from c.traverse_node()
+    
+    def get_children_by_role(self, role: str) -> List["ASTNode"]:
+        """Helper method for CFG building - get children with specific role"""
+        return [child for child in self.children if child.role == role]
+    
+    def get_child_by_role(self, role: str) -> Optional["ASTNode"]:
+        """Get first child with specific role"""
+        children = self.get_children_by_role(role)
+        return children[0] if children else None
+    
+    def get_children_by_type(self, node_type: str) -> List["ASTNode"]:
+        """Get children with specific type"""
+        return [child for child in self.children if child.type == node_type]
 
 class AST:
     """this is the AST as a whole graph"""
@@ -78,16 +90,25 @@ class ASTBuilder:
 
         self._id_counter += 1
 
+        # Build children first
+        for child in ts_node.children:
+            child_node = self.build(child, parent=node)
+            child_node.parent = node
+            node.children.append(child_node)
+
+        # Assign roles AFTER children are built
         if parent:
             if parent.type == "function_definition":
-                node.role = "function_body"
+                if node.type == "block":
+                    node.role = "function_body"
 
             elif parent.type == "if_statement":
                 if ts_node.type == "comparison_operator":
                     node.role = "condition"
                 elif ts_node.type == "block":
-                    # first block = then, second = else
-                    node.role = "then_branch" if not parent.children else "else_branch"
+                    # FIXED: Count existing block children before this one
+                    existing_blocks = sum(1 for c in parent.children if c.type == "block")
+                    node.role = "then_branch" if existing_blocks == 1 else "else_branch"
 
             elif parent.type == "while_statement":
                 if ts_node.type == "parenthesized_expression":
@@ -95,16 +116,11 @@ class ASTBuilder:
                 elif ts_node.type == "block":
                     node.role = "loop_body"
 
-            elif ts_node.type == "return_statement":
+            elif node.type == "return_statement":
                 node.role = "return"
-
             else:
-                node.role = "statement"
-
-
-        for child in ts_node.children:
-            child_node = self.build(child, parent=node)
-            child_node.parent = node
-            node.children.append(child_node)
+                # Only mark as statement if it's a statement-like node
+                if node.type.endswith("_statement") or node.type in ["expression_statement", "assignment"]:
+                    node.role = "statement"
 
         return node

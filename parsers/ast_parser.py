@@ -1,4 +1,4 @@
-from models import AST, TreeSitterParser, ASTBuilder
+from models.ast_models import AST, TreeSitterParser, ASTBuilder
 
 source_code = """
 def add(a, b):
@@ -13,4 +13,3 @@ ast_root = builder.build(tree.root_node)
 
 ast = AST(ast_root)
 ast.root.print_pretty()
-# ast.root.print_pretty_role()
