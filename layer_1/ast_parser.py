@@ -7,9 +7,10 @@ def add(a, b):
 
 parser = TreeSitterParser()
 tree = parser.parse(source_code)
-    
-builder = ASTBuilder(source_code)
+
+builder = ASTBuilder(source_code    )
 ast_root = builder.build(tree.root_node)
 
 ast = AST(ast_root)
 ast.root.print_pretty()
+# ast.root.print_pretty_role()
