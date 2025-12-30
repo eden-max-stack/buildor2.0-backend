@@ -61,6 +61,11 @@ class ASTNode:
         children = self.get_children_by_role(role)
         return children[0] if children else None
     
+    def get_child_by_type(self, node_type: str) -> Optional["ASTNode"]:
+        """Get first child with specific type"""
+        children = self.get_children_by_type(node_type)
+        return children[0] if children else None
+    
     def get_children_by_type(self, node_type: str) -> List["ASTNode"]:
         """Get children with specific type"""
         return [child for child in self.children if child.type == node_type]
@@ -90,12 +95,6 @@ class ASTBuilder:
 
         self._id_counter += 1
 
-        # Build children first
-        for child in ts_node.children:
-            child_node = self.build(child, parent=node)
-            child_node.parent = node
-            node.children.append(child_node)
-
         # Assign roles AFTER children are built
         if parent:
             if parent.type == "function_definition":
@@ -108,7 +107,11 @@ class ASTBuilder:
                 elif ts_node.type == "block":
                     # FIXED: Count existing block children before this one
                     existing_blocks = sum(1 for c in parent.children if c.type == "block")
-                    node.role = "then_branch" if existing_blocks == 1 else "else_branch"
+                    node.role = "then_branch" if existing_blocks == 0 else "else_branch"
+
+            elif parent.type == "else_clause":  # ← ADD THIS
+                if ts_node.type == "block":
+                    node.role = "else_branch"
 
             elif parent.type == "while_statement":
                 if ts_node.type == "parenthesized_expression":
@@ -122,5 +125,12 @@ class ASTBuilder:
                 # Only mark as statement if it's a statement-like node
                 if node.type.endswith("_statement") or node.type in ["expression_statement", "assignment"]:
                     node.role = "statement"
+
+
+        # Build children 
+        for child in ts_node.children:
+            child_node = self.build(child, parent=node)
+            child_node.parent = node
+            node.children.append(child_node)
 
         return node

@@ -2,11 +2,12 @@ from models.ast_models import AST, ASTNode, TreeSitterParser, ASTBuilder
 from models.cfg_models import CFGBuilder
 
 source_code = """
-def add(a, b):
-    if a > b:
-        return a
-    return b
-
+def example(x):
+    if x > 0:
+        print("positive")
+    else:
+        print("negative")
+    print("done")
 """
 
 def find_functions(ast_root: ASTNode) -> list[ASTNode]:

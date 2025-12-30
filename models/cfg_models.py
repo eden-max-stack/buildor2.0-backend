@@ -175,7 +175,12 @@ class CFGBuilder:
 
         # Get then and else branches
         then_branch = if_node.get_child_by_role("then_branch")
-        else_branch = if_node.get_child_by_role("else_branch")
+        else_clause = if_node.get_child_by_type("else_clause")
+
+        if else_clause:
+            else_branch = else_clause.get_child_by_role("else_branch")
+        else:
+            else_branch = None
 
         # Build then branch
         if then_branch:
@@ -190,6 +195,13 @@ class CFGBuilder:
             else_entry, else_exit = self.build_block(else_stmts)
         else:
             else_entry = else_exit = None
+
+        if not else_branch:
+
+            if then_entry:
+                cond.outgoing.append(CFGEdge(cond, then_entry, "true"))
+
+            return cond, cond
 
         # Merge point
         merge = self.new_node(if_node, "merge")
