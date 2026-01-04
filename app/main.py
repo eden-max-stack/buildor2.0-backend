@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 
-app = FastAPI()
+app = FastAPI(title="Buildor Backend")
 
-from app.api.graph_analysis import router as graph_router
+from app.api.graph import router as graph_router
 
 app.include_router(
     graph_router,

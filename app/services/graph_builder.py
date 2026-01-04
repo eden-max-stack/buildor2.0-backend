@@ -1,3 +1,5 @@
+import ast
+
 def ast_to_graph(ast_tree):
     nodes = []
     edges = []
