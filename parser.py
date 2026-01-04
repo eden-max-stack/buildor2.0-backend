@@ -1,13 +1,18 @@
 from models.ast_models import AST, ASTNode, TreeSitterParser, ASTBuilder
 from models.cfg_models import CFGBuilder
+from models.dfg_models import DFGBuilder
 
 source_code = """
 def example(x):
+    y = x + 1
     if x > 0:
-        print("positive")
+        z = y * 2
+        print(z)
     else:
-        print("negative")
-    print("done")
+        z = y * 3
+        print(z)
+    result = z + y
+    return result
 """
 
 def find_functions(ast_root: ASTNode) -> list[ASTNode]:
@@ -24,12 +29,23 @@ builder = ASTBuilder(source_code)
 ast_root = builder.build(tree.root_node)
 
 ast = AST(ast_root)
+print("AST:")
 ast.root.print_pretty()
 
 functions = find_functions(ast.root)
 print(f"Found {len(functions)} function(s) in the AST.")
 
 cfg_builder = CFGBuilder()
+dfg_builder = DFGBuilder(source_code)
+
 for fn in functions:
+    print("CFG:")
     cfg = cfg_builder.build(fn)
     cfg.print_pretty()
+
+    print("DFG:")
+    dfg = dfg_builder.build(fn, cfg)
+    dfg.print_pretty()
+
+
+
