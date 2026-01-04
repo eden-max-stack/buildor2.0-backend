@@ -1,2 +1,5 @@
 tree_sitter
 tree-sitter-python
+fastapi
+pydantic
+uvicorn
