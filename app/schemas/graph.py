@@ -1,35 +1,8 @@
-# from pydantic import BaseModel
-# from typing import List
-
-# class GraphRequest(BaseModel):
-#     student_code: str
-#     reference_code: str
-#     language: str
-
-# class GraphNode(BaseModel):
-#     id: str
-#     type: str
-#     label: str
-#     line: int
-#     status: str  # normal | error
-
-# class GraphEdge(BaseModel):
-#     source: str
-#     target: str
-#     type: str
-
-# class GraphResponse(BaseModel):
-#     graph: dict
-#     error_nodes: List[str]
-#     error_type: str
-#     confidence: float
-
-
 """
 Pydantic schemas for graph analysis API
 """
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 
 class AnalyzeRequest(BaseModel):
@@ -37,16 +10,20 @@ class AnalyzeRequest(BaseModel):
     source_code: str
 
 
+# Forward declaration for recursive AST nodes
 class ASTNode(BaseModel):
-    """AST Node schema"""
     id: int
     type: str
-    role: Optional[str]
-    symbol: Optional[str]
-    operator: Optional[str]
+    role: Optional[str] = None
+    symbol: Optional[str] = None
+    operator: Optional[str] = None
     text: str
-    source_span: Optional[tuple]
+    source_span: Optional[List[int]] = None
     children: List['ASTNode']
+
+
+# Update the forward reference
+ASTNode.update_forward_refs()
 
 
 class ASTResponse(BaseModel):
@@ -59,15 +36,15 @@ class CFGNodeSchema(BaseModel):
     """CFG Node schema"""
     id: int
     label: str
-    ast_node_id: Optional[int]
-    ast_node_type: Optional[str]
+    ast_node_id: Optional[int] = None
+    ast_node_type: Optional[str] = None
 
 
 class CFGEdgeSchema(BaseModel):
     """CFG Edge schema"""
     source: int
     target: int
-    condition: Optional[str]
+    condition: Optional[str] = None
 
 
 class CFGResponse(BaseModel):
@@ -103,9 +80,16 @@ class DFGResponse(BaseModel):
     uses: Dict[str, List[int]]
 
 
+class FunctionAnalysis(BaseModel):
+    """Analysis for a single function"""
+    name: str
+    ast_node_id: int
+    cfg: CFGResponse
+    dfg: DFGResponse
+
+
 class AnalyzeResponse(BaseModel):
     """Complete graph analysis response"""
     ast: Dict[str, Any]  # Using Dict for flexibility with nested structure
-    cfg: CFGResponse
-    dfg: DFGResponse
+    functions: List[FunctionAnalysis]
     source_code: str

@@ -61,7 +61,7 @@ class CFGBuilder:
         
         return node
 
-    def build_block(self, statements: List[ASTNode]) -> Tuple[Optional[CFGNode], Optional[CFGNode]]:
+    def build_block(self, statements: List[ASTNode], exit_node: CFGNode = None) -> Tuple[Optional[CFGNode], Optional[CFGNode]]:
         """Build CFG for a sequence of statements
         
         Returns:
@@ -81,6 +81,9 @@ class CFGBuilder:
                 entry, exit = self.build_while(stmt)
             elif stmt.type == "return_statement":
                 entry = exit = self.new_node(stmt, "return")
+
+                if exit_node:
+                    entry.outgoing.append(CFGEdge(entry, exit_node))
                 # Return short-circuits - don't connect to next statement
                 if first is None:
                     first = entry
@@ -133,7 +136,7 @@ class CFGBuilder:
             statements = self.extract_statements(ast_root)
             
             if statements:
-                body_entry, body_exit = self.build_block(statements)
+                body_entry, body_exit = self.build_block(statements, exit)
                 if body_entry:
                     entry.outgoing.append(CFGEdge(entry, body_entry))
                 

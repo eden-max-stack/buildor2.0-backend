@@ -6,6 +6,11 @@ from core_engine.models.ast_models import TreeSitterParser, ASTBuilder, AST, AST
 from core_engine.models.cfg_models import CFGBuilder, CFG, CFGNode, CFGEdge
 from core_engine.models.dfg_models import DFGBuilder, DFG, DFGNode, DFGEdge
 
+def find_functions(ast_root: ASTNode) -> list[ASTNode]:
+    return [
+        node for node in ast_root.traverse_node()
+        if node.type == "function_definition"
+    ]
 
 class GraphService:
     """Service for building and serializing all graph representations"""
@@ -16,31 +21,125 @@ class GraphService:
     def build_all_graphs(self) -> Dict[str, Any]:
         """
         Build AST, CFG, and DFG from source code
-        
-        Returns:
-            Dictionary containing serialized AST, CFG, and DFG
         """
-        # Step 1: Parse and build AST
-        parser = TreeSitterParser()
-        tree = parser.parse(self.source_code)
-        ast_builder = ASTBuilder(self.source_code)
-        ast_root = ast_builder.build(tree.root_node)
-        ast = AST(ast_root)
-        
-        # Step 2: Build CFG from AST
-        cfg_builder = CFGBuilder()
-        cfg = cfg_builder.build(ast_root)
-        
-        # Step 3: Build DFG from AST and CFG
-        dfg_builder = DFGBuilder(self.source_code)
-        dfg = dfg_builder.build(ast_root, cfg)
-        
-        # Step 4: Serialize all graphs to JSON-friendly format
+        try:
+            # Step 1: Parse and build AST
+            parser = TreeSitterParser()
+            tree = parser.parse(self.source_code)
+            ast_builder = ASTBuilder(self.source_code)
+            ast_root = ast_builder.build(tree.root_node)
+            ast = AST(ast_root)
+            
+            # Step 2: Find all functions
+            functions = find_functions(ast_root)
+            
+            # Step 3: Build CFG and DFG for each function
+            function_analyses = []
+            
+            for func_node in functions:
+                try:
+                    # Get function name
+                    func_name = self._get_function_name(func_node)
+                    
+                    # Build CFG for this function
+                    cfg_builder = CFGBuilder()
+                    cfg = cfg_builder.build(func_node)
+                    
+                    # Build DFG for this function
+                    dfg_builder = DFGBuilder(self.source_code)
+                    dfg = dfg_builder.build(func_node, cfg)
+                    
+                    # Serialize CFG and DFG
+                    cfg_serialized = self._serialize_cfg(cfg)
+                    dfg_serialized = self._serialize_dfg(dfg)
+                    
+                    function_analyses.append({
+                        "name": func_name,
+                        "ast_node_id": func_node.id,
+                        "cfg": cfg_serialized,
+                        "dfg": dfg_serialized
+                    })
+                    
+                except Exception as e:
+                    print(f"Error building graphs for function: {e}")
+                    # Create empty analysis for this failed function
+                    func_name = self._get_function_name(func_node) if 'func_node' in locals() else "unknown"
+                    function_analyses.append({
+                        "name": func_name,
+                        "ast_node_id": func_node.id if 'func_node' in locals() else 0,
+                        "cfg": self._serialize_cfg(self._create_empty_cfg()),
+                        "dfg": self._serialize_dfg(self._create_empty_dfg())
+                    })
+            
+            # If no functions found, create analysis for the entire module
+            if not functions:
+                # Build CFG and DFG for entire module
+                cfg_builder = CFGBuilder()
+                cfg = cfg_builder.build(ast_root)
+                
+                dfg_builder = DFGBuilder(self.source_code)
+                dfg = dfg_builder.build(ast_root, cfg)
+                
+                function_analyses.append({
+                    "name": "module",
+                    "ast_node_id": ast_root.id,
+                    "cfg": self._serialize_cfg(cfg),
+                    "dfg": self._serialize_dfg(dfg)
+                })
+            
+            # Step 4: Serialize
+            return {
+                "ast": self._serialize_ast(ast),
+                "functions": function_analyses,
+                "source_code": self.source_code
+            }
+            
+        except Exception as e:
+            print(f"Error in GraphService: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            return {
+                "ast": self._create_empty_ast(),
+                "functions": [],
+                "source_code": self.source_code,
+                "error": str(e)
+            }
+
+    def _create_empty_ast(self) -> Dict[str, Any]:
+        """Create empty AST structure"""
         return {
-            "ast": self._serialize_ast(ast),
-            "cfg": self._serialize_cfg(cfg),
-            "dfg": self._serialize_dfg(dfg)
+            "root": {
+                "id": 0,
+                "type": "module",
+                "role": None,
+                "symbol": None,
+                "operator": None,
+                "text": self.source_code,
+                "source_span": [0, len(self.source_code)],
+                "children": []
+            },
+            "node_count": 1
         }
+    
+    def _create_empty_cfg(self) -> CFG:
+        """Create empty CFG structure"""
+        entry = CFGNode(id=0, ast_node=None, label="ENTRY")
+        exit = CFGNode(id=1, ast_node=None, label="EXIT")
+        cfg = CFG(entry, exit)
+        entry.outgoing.append(CFGEdge(entry, exit))
+        return cfg
+    
+    def _create_empty_dfg(self) -> DFG:
+        """Create empty DFG structure"""
+        return DFG()
+    
+    def _get_function_name(self, func_node: ASTNode) -> str:
+        """Extract function name from AST node"""
+        for child in func_node.children:
+            if child.type == "identifier":
+                return child.get_text(self.source_code)
+        return "anonymous"
     
     def _serialize_ast(self, ast: AST) -> Dict[str, Any]:
         """Convert AST to JSON-serializable format"""
@@ -65,6 +164,10 @@ class GraphService:
     def _serialize_cfg(self, cfg: CFG) -> Dict[str, Any]:
         """Convert CFG to JSON-serializable format for D3.js"""
         
+        print(f"\n=== DEBUG: CFG Serialization ===")
+        print(f"Total nodes in cfg.nodes: {len(cfg.nodes)}")
+        print("Nodes in cfg.nodes:", [f"{n.id}:{n.label}" for n in cfg.nodes])
+        
         nodes = []
         edges = []
         
@@ -77,14 +180,21 @@ class GraphService:
                 "ast_node_type": node.ast_node.type if node.ast_node else None
             })
         
+        print(f"\nEdges found:")
+        edge_count = 0
         # Serialize edges
         for node in cfg.nodes:
             for edge in node.outgoing:
+                edge_count += 1
+                print(f"  {edge.source.id}:{edge.source.label} -> {edge.target.id}:{edge.target.label} (cond: {edge.condition})")
                 edges.append({
                     "source": edge.source.id,
                     "target": edge.target.id,
                     "condition": edge.condition
                 })
+        
+        print(f"Total edges: {edge_count}")
+        print("=== END DEBUG ===\n")
         
         return {
             "nodes": nodes,
@@ -92,7 +202,7 @@ class GraphService:
             "entry_id": cfg.entry.id,
             "exit_id": cfg.exit.id
         }
-    
+
     def _serialize_dfg(self, dfg: DFG) -> Dict[str, Any]:
         """Convert DFG to JSON-serializable format for D3.js"""
         
