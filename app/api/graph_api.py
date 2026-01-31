@@ -2,7 +2,7 @@
 API routes for graph analysis
 """
 from fastapi import APIRouter, HTTPException
-from app.schemas.graph import AnalyzeRequest, AnalyzeResponse, FunctionAnalysis
+from app.schemas.graph_schema import AnalyzeRequest, AnalyzeResponse, FunctionAnalysis
 from app.services.graph_service import GraphService
 
 router = APIRouter()

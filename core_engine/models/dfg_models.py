@@ -79,6 +79,10 @@ class DFGBuilder:
     
     def build(self, ast_root: ASTNode, cfg: CFG) -> DFG:
         """Build DFG from AST and CFG"""
+
+        # Step 0: Inject Parameter Definitions
+        self._inject_parameters(ast_root, cfg)
+
         # Step 1: Extract all variable definitions and uses from AST
         self._extract_variables(cfg)
         
@@ -122,7 +126,7 @@ class DFGBuilder:
             
             # Find uses (reads)
             uses = self._find_uses(cfg_node.ast_node)
-            for var_name in uses:
+            for var_name, is_sink in uses:
                 dfg_node = DFGNode(
                     id=self.node_id,
                     variable=var_name,
@@ -133,6 +137,26 @@ class DFGBuilder:
                 self.node_id += 1
                 self.dfg.add_node(dfg_node)
     
+    def _inject_parameters(self, ast_root: ASTNode, cfg: CFG):
+        """Create definition nodes for function parameters at Entry"""
+        if ast_root.type == "function_definition":
+            params_node = ast_root.get_child_by_type("parameters")
+            if params_node:
+                for child in params_node.traverse_node():
+                    if child.type == "identifier":
+                        var_name = child.get_text(self.source_code)
+                        
+                        # Create a DFG definition node at CFG Entry
+                        dfg_node = DFGNode(
+                            id=self.node_id,
+                            variable=var_name,
+                            ast_node=child,
+                            cfg_node=cfg.entry, # Attached to ENTRY
+                            is_definition=True
+                        )
+                        self.node_id += 1
+                        self.dfg.add_node(dfg_node)
+
     def _extract_from_condition(self, cfg_node: CFGNode):
         """Extract variables from a condition node (if_cond, while_cond)"""
         ast_node = cfg_node.ast_node
@@ -221,6 +245,8 @@ class DFGBuilder:
                 var_name = node.get_text(self.source_code)
                 
                 parent = node.parent
+
+                is_sink = False
                 if parent:
                     # Skip if this is the left side of an assignment
                     if parent.type == "assignment":
@@ -233,8 +259,16 @@ class DFGBuilder:
                         call_func = parent.children[0] if parent.children else None
                         if call_func and call_func.id == node.id:
                             continue  # This is a function name, not a variable use
-                
-                uses.add(var_name)
+
+                    if parent.type == "argument_list":
+                        # Check the call function name
+                        call_node = parent.parent
+                        if call_node and call_node.type == "call":
+                            func_name_node = call_node.get_child_by_type("identifier")
+                            if func_name_node and func_name_node.get_text(self.source_code) == "print":
+                                is_sink = True
+                    
+                uses.add((var_name, is_sink))
         
         return uses
     

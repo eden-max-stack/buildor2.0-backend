@@ -12,7 +12,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-from app.api.graph import router as graph_router
+from app.api.graph_api import router as graph_router
 
 app.include_router(
     graph_router,

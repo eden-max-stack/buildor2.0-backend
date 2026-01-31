@@ -205,6 +205,26 @@ class GraphService:
 
     def _serialize_dfg(self, dfg: DFG) -> Dict[str, Any]:
         """Convert DFG to JSON-serializable format for D3.js"""
+
+        print(f"\n=== DEBUG: DFG Serialization ===")
+        print(f"Total nodes in dfg.nodes: {len(dfg.nodes)}")
+
+        node_debug_info = [
+            f"{n.id}:{n.variable}({'DEF' if n.is_definition else 'USE'})" 
+            for n in dfg.nodes
+        ]
+        print("Nodes in dfg.nodes:", node_debug_info)
+
+        print(f"\nEdges found:")
+        for edge in dfg.edges:
+            print(f"  {edge.source.id} -> {edge.target.id} (var: {edge.variable})")
+            
+        print(f"Total edges: {len(dfg.edges)}")
+        
+        print(f"\nVariable Maps:")
+        print(f"  Defined vars: {list(dfg.definitions.keys())}")
+        print(f"  Used vars: {list(dfg.uses.keys())}")
+        print("=== END DEBUG ===\n")
         
         nodes = []
         edges = []
@@ -239,4 +259,73 @@ class GraphService:
                 var: [n.id for n in nodes_list] 
                 for var, nodes_list in dfg.uses.items()
             }
+        }
+
+    def get_raw_graphs(self) -> Dict[str, Any]:
+        """
+        Returns raw object instances (AST, CFG, DFG) for internal processing (GNN).
+        Does NOT perform JSON serialization.
+        """
+        # Step 1: Parse and build AST
+        parser = TreeSitterParser()
+        tree = parser.parse(self.source_code)
+        ast_builder = ASTBuilder(self.source_code)
+        ast_root = ast_builder.build(tree.root_node)
+        ast = AST(ast_root)
+        
+        # Step 2: Find all functions
+        functions = find_functions(ast_root)
+        
+        # Step 3: Build CFG and DFG for each function
+        function_analyses = []
+        
+        for func_node in functions:
+            try:
+                func_name = self._get_function_name(func_node)
+                
+                cfg_builder = CFGBuilder()
+                cfg = cfg_builder.build(func_node)
+                
+                dfg_builder = DFGBuilder(self.source_code)
+                dfg = dfg_builder.build(func_node, cfg)
+                
+                # Store RAW OBJECTS, not serialized dicts
+                function_analyses.append({
+                    "name": func_name,
+                    "ast_node": func_node, # Store the node object itself
+                    "cfg": cfg,            # Store CFG object
+                    "dfg": dfg             # Store DFG object
+                })
+            except Exception as e:
+                print(f"Error building graphs for function: {e}")
+                # Handle error...
+
+        # Handle module level fallback... (same as before)
+
+        return {
+            "ast": ast,
+            "functions": function_analyses,
+            "source_code": self.source_code
+        }
+
+    def build_all_graphs(self) -> Dict[str, Any]:
+        """
+        Public API method: Builds graphs AND serializes them to JSON dicts.
+        """
+        raw_data = self.get_raw_graphs()
+        
+        # Convert raw objects to the JSON structure expected by the API
+        serialized_functions = []
+        for func in raw_data["functions"]:
+            serialized_functions.append({
+                "name": func["name"],
+                "ast_node_id": func["ast_node"].id,
+                "cfg": self._serialize_cfg(func["cfg"]),
+                "dfg": self._serialize_dfg(func["dfg"])
+            })
+            
+        return {
+            "ast": self._serialize_ast(raw_data["ast"]),
+            "functions": serialized_functions,
+            "source_code": raw_data["source_code"]
         }

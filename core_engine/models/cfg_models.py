@@ -174,6 +174,12 @@ class CFGBuilder:
         Returns:
             (condition_node, merge_node)
         """
+
+        condition_ast = if_node.get_child_by_role("condition")
+        if not condition_ast:
+            # Fallback if tree-sitter didn't tag it, usually first child is 'if', second is condition
+            condition_ast = if_node.children[1] if len(if_node.children) > 1 else if_node
+            
         cond = self.new_node(if_node, "if_cond")
 
         # Get then and else branches
