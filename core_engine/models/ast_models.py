@@ -119,6 +119,20 @@ class ASTBuilder:
                 elif ts_node.type == "block":
                     node.role = "loop_body"
 
+            elif parent.type == "for_statement":
+                if ts_node.type == "block":
+                    node.role = "loop_body"
+                elif ts_node.type in ["pattern_list", "tuple_pattern", "identifier"]:
+                    # This captures "x, y" in "for x, y in ..."
+                    node.role = "loop_iterator" 
+                elif node.role is None and ts_node.type not in ["in", "for", ":"]:
+                    # This captures "enumerate(nums)" in "for ... in enumerate(nums)"
+                    node.role = "loop_iterable"
+
+            elif parent.type == "typed_parameter":
+                if ts_node.type == "identifier":
+                    node.role = "parameter_name"
+
             elif node.type == "return_statement":
                 node.role = "return"
             else:

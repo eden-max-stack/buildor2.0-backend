@@ -3,3 +3,5 @@ tree-sitter-python
 fastapi
 pydantic
 uvicorn
+torch
+torch-geometric

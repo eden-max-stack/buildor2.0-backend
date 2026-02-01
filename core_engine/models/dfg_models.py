@@ -14,6 +14,7 @@ class DFGNode:
     is_definition: bool  # True for writes, False for reads
     incoming: List["DFGEdge"] = field(default_factory=list)
     outgoing: List["DFGEdge"] = field(default_factory=list)
+    is_sink: bool = False  # True if this use is a sink (e.g., print)
 
 
 @dataclass
@@ -109,20 +110,34 @@ class DFGBuilder:
                 # Only look at the condition expression, not the whole if/while statement
                 self._extract_from_condition(cfg_node)
                 continue
-            
-            # For regular statements, analyze the statement node
-            # Find definitions (assignments)
-            defs = self._find_definitions(cfg_node.ast_node)
-            for var_name in defs:
-                dfg_node = DFGNode(
-                    id=self.node_id,
-                    variable=var_name,
-                    ast_node=cfg_node.ast_node,
-                    cfg_node=cfg_node,
-                    is_definition=True
-                )
-                self.node_id += 1
-                self.dfg.add_node(dfg_node)
+
+            if cfg_node.label in ["assignment", "for_iter"]:
+                targets = self._find_definitions(cfg_node.ast_node) 
+                for var_name in targets:
+                    dfg_node = DFGNode(
+                        id=self.node_id,
+                        variable=var_name,
+                        ast_node=cfg_node.ast_node,
+                        cfg_node=cfg_node,
+                        is_definition=True
+                    )
+                    self.node_id += 1
+                    self.dfg.add_node(dfg_node)
+
+            elif cfg_node.label == "expression_statement":
+                inner_assign = cfg_node.ast_node.get_child_by_type("assignment")
+                if inner_assign:
+                    targets = self._find_definitions(inner_assign)
+                    for var_name in targets:
+                        dfg_node = DFGNode(
+                            id=self.node_id,
+                            variable=var_name,
+                            ast_node=inner_assign,
+                            cfg_node=cfg_node,
+                            is_definition=True
+                        )
+                        self.node_id += 1
+                        self.dfg.add_node(dfg_node)
             
             # Find uses (reads)
             uses = self._find_uses(cfg_node.ast_node)
@@ -132,7 +147,8 @@ class DFGBuilder:
                     variable=var_name,
                     ast_node=cfg_node.ast_node,
                     cfg_node=cfg_node,
-                    is_definition=False
+                    is_definition=False,
+                    is_sink=is_sink
                 )
                 self.node_id += 1
                 self.dfg.add_node(dfg_node)
@@ -143,9 +159,14 @@ class DFGBuilder:
             params_node = ast_root.get_child_by_type("parameters")
             if params_node:
                 for child in params_node.traverse_node():
-                    if child.type == "identifier":
+                    var_name = None
+                    if child.type == "identifier" and child.parent.type == "parameters":
                         var_name = child.get_text(self.source_code)
-                        
+
+                    elif child.type == "identifier" and child.parent.type == "typed_parameter":
+                        var_name = child.get_text(self.source_code)
+
+                    if var_name:                        
                         # Create a DFG definition node at CFG Entry
                         dfg_node = DFGNode(
                             id=self.node_id,
@@ -216,24 +237,38 @@ class DFGBuilder:
         return uses
     
     def _find_definitions(self, ast_node: ASTNode) -> Set[str]:
-        """Find all variable definitions in an AST node"""
-        definitions = set()
-        
-        # Look for assignment patterns
-        if ast_node.type == "assignment":
-            # Left side of assignment
-            left = ast_node.get_child_by_type("identifier")
-            if left:
-                var_name = left.get_text(self.source_code)
-                definitions.add(var_name)
-        
-        # Recursively check children
-        for child in ast_node.children:
-            # Don't recurse into nested blocks (they're separate CFG nodes)
-            if child.type not in ["block", "function_definition"]:
-                definitions.update(self._find_definitions(child))
-        
-        return definitions
+            """Recursively find variables being assigned to"""
+            defs = set()
+            if not ast_node: return defs
+
+            # Case 1: Direct Identifier (e.g., "x" in "x = 1")
+            if ast_node.type == "identifier":
+                defs.add(ast_node.get_text(self.source_code))
+            
+            # Case 2: Tuple/List Unpacking (e.g., "x, y" in "x, y = 1, 2")
+            # Tree-sitter might call these pattern_list, tuple_pattern, or just a list of identifiers
+            elif ast_node.type in ["pattern_list", "tuple_pattern", "list_pattern"]:
+                for child in ast_node.children:
+                    # Recursively extract from children (handling nested tuples like (a, (b, c)))
+                    defs.update(self._find_definitions(child))
+                    
+            # Case 3: Assignment Node (e.g., "x = y")
+            # We only want the LEFT SIDE. Usually the first child.
+            elif ast_node.type == "assignment":
+                # The structure is usually [left_side, equals_sign, right_side]
+                # or [left_side, right_side] depending on the parser version.
+                # Safe bet: Check the first child.
+                if ast_node.children:
+                    defs.update(self._find_definitions(ast_node.children[0]))
+            
+            # Case 4: For Loop Iterator (e.g. "for x in y")
+            # If this method is called on a "for_statement" node, we look for the iterator role
+            elif ast_node.type == "for_statement":
+                iterator = ast_node.get_child_by_role("loop_iterator")
+                if iterator:
+                    defs.update(self._find_definitions(iterator))
+
+            return defs
     
     def _find_uses(self, ast_node: ASTNode) -> Set[str]:
         """Find all variable uses (reads) in an AST node (statement level)"""

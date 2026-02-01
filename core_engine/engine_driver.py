@@ -23,8 +23,3 @@ converter = GraphToPyGConverter()
 gnn_data = converter.convert(raw_graphs) # Get PyTorch Tensor
 
 print(gnn_data)
-# Output: HeteroData(
-#   ast_node={ x=[71, 1] },
-#   cfg_node={ x=[11, 1] },
-#   ...
-# )

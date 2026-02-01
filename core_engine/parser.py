@@ -1,6 +1,6 @@
-from models.ast_models import AST, ASTNode, TreeSitterParser, ASTBuilder
-from models.cfg_models import CFGBuilder
-from models.dfg_models import DFGBuilder
+from core_engine.models.ast_models import AST, ASTNode, TreeSitterParser, ASTBuilder
+from core_engine.models.cfg_models import CFGBuilder
+from core_engine.models.dfg_models import DFGBuilder
 
 source_code = """
 def example(x):

@@ -79,6 +79,8 @@ class CFGBuilder:
                 entry, exit = self.build_if(stmt)
             elif stmt.type == "while_statement":
                 entry, exit = self.build_while(stmt)
+            elif stmt.type == "for_statement":        # <--- ADD THIS BLOCK
+                entry, exit = self.build_for(stmt)
             elif stmt.type == "return_statement":
                 entry = exit = self.new_node(stmt, "return")
 
@@ -161,12 +163,12 @@ class CFGBuilder:
             if body:
                 return [child for child in body.children 
                        if child.role in ["statement", "return"] or 
-                       child.type in ["if_statement", "while_statement", "return_statement"]]
+                       child.type in ["if_statement", "while_statement", "return_statement", "for_statement", "return_statement"]]
         
         # For blocks, get all statement children
         return [child for child in ast_node.children
                 if child.role in ["statement", "return"] or 
-                child.type in ["if_statement", "while_statement", "return_statement"]]
+                child.type in ["if_statement", "while_statement", "return_statement", "for_statement", "return_statement"]]
 
     def build_if(self, if_node: ASTNode) -> Tuple[CFGNode, CFGNode]:
         """Build CFG for if statement
@@ -269,3 +271,44 @@ class CFGBuilder:
             body_exit.outgoing.append(CFGEdge(body_exit, cond))
 
         return cond, loop_exit
+    
+    def build_for(self, for_node: ASTNode) -> Tuple[CFGNode, CFGNode]:
+        """Build CFG for for-loop"""
+        
+        # 1. The Iterator Node 
+        # In "for x in nums", this acts as the assignment/condition check
+        iterator_ast = for_node.get_child_by_role("loop_iterator")
+        # Fallback if roles aren't perfectly set yet
+        if not iterator_ast:
+             # Usually the 1st or 2nd child in tree-sitter structure
+             iterator_ast = for_node
+             
+        loop_header = self.new_node(iterator_ast, "for_iter")
+        
+        # 2. The Body
+        loop_body = for_node.get_child_by_role("loop_body")
+        if loop_body:
+            body_stmts = self.extract_statements(loop_body)
+            body_entry, body_exit = self.build_block(body_stmts)
+        else:
+            body_entry = body_exit = None
+
+        # 3. The Exit Node
+        loop_exit = self.new_node(for_node, "for_exit")
+
+        # 4. Connect Edges
+        if body_entry:
+            # Header -> Body (Next item exists)
+            loop_header.outgoing.append(CFGEdge(loop_header, body_entry, "next"))
+            
+            # Body -> Header (Loop back)
+            if body_exit.label != "return":
+                body_exit.outgoing.append(CFGEdge(body_exit, loop_header))
+        else:
+            # Empty body loops back to self until done
+            loop_header.outgoing.append(CFGEdge(loop_header, loop_header, "next"))
+
+        # Header -> Exit (StopIteration / Done)
+        loop_header.outgoing.append(CFGEdge(loop_header, loop_exit, "done"))
+
+        return loop_header, loop_exit
