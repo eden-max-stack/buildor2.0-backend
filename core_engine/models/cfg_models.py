@@ -83,6 +83,10 @@ class CFGBuilder:
                 entry, exit = self.build_for(stmt)
             elif stmt.type == "with_statement":     # <--- ADD THIS
                 entry, exit = self.build_with(stmt)
+            elif stmt.type == "try_statement":
+                entry, exit = self.build_try(stmt)
+            elif stmt.type == "assert_statement":
+                entry, exit = self.build_assert(stmt)
             elif stmt.type == "return_statement":
                 entry = exit = self.new_node(stmt, "return")
 
@@ -159,19 +163,45 @@ class CFGBuilder:
 
     def extract_statements(self, ast_node: ASTNode) -> List[ASTNode]:
         """Extract statement nodes from AST node"""
-        # For function definitions, get children of function_body
+        
+        # 1. Define what counts as a "Statement" in our CFG
+        # These are the nodes we want to graph. Everything else is ignored.
+        VALID_STATEMENTS = {
+            "if_statement", 
+            "while_statement", 
+            "for_statement",    
+            "with_statement",     
+            "try_statement",     
+            "return_statement", 
+            "raise_statement", 
+            "assert_statement",
+            "delete_statement",
+            "expression_statement",
+            "assignment",
+            "break_statement",
+            "continue_statement",
+            "pass_statement",
+        }
+
+        # 2. Get the body children based on the node type
+        children = []
         if ast_node.type == "function_definition":
             body = ast_node.get_child_by_role("function_body")
-            if body:
-                return [child for child in body.children 
-                       if child.role in ["statement", "return"] or 
-                       child.type in ["if_statement", "while_statement", "return_statement", "for_statement", "return_statement"]]
-        
-        # For blocks, get all statement children
-        return [child for child in ast_node.children
-                if child.role in ["statement", "return"] or 
-                child.type in ["if_statement", "while_statement", "return_statement", "for_statement", "return_statement"]]
+            if body: children = body.children
+        else:
+            # For blocks, loops, branches, etc.
+            children = ast_node.children
 
+        # 3. Filter the children
+        results = []
+        for child in children:
+            # Check the specific type (e.g. "if_statement")
+            # OR check the generic role (e.g. "statement")
+            if child.type in VALID_STATEMENTS or child.role in ["statement", "return"]:
+                results.append(child)
+                
+        return results
+    
     def build_if(self, if_node: ASTNode) -> Tuple[CFGNode, CFGNode]:
         """Build CFG for if statement
         
@@ -353,3 +383,106 @@ class CFGBuilder:
             with_entry.outgoing.append(CFGEdge(with_entry, with_exit))
 
         return with_entry, with_exit
+    
+    def build_try(self, try_node: ASTNode) -> Tuple[CFGNode, CFGNode]:
+        """Build CFG for try/except/else/finally"""
+        
+        # 1. Nodes
+        try_entry = self.new_node(try_node, "try_entry")
+        try_exit = self.new_node(try_node, "try_exit") # The final merge point
+        
+        # 2. Build The Main Try Block
+        try_body_ast = try_node.get_child_by_role("try_body")
+        try_stmts = self.extract_statements(try_body_ast) if try_body_ast else []
+        t_entry, t_exit = self.build_block(try_stmts)
+
+        # 3. Build Handlers (Except Clauses)
+        handlers = try_node.get_children_by_role("except_clause")
+        handler_chains = [] # List of (entry, exit) for each handler
+        
+        for h in handlers:
+            h_body_ast = h.get_child_by_role("except_body")
+            h_stmts = self.extract_statements(h_body_ast) if h_body_ast else []
+            h_entry, h_exit = self.build_block(h_stmts)
+            
+            # The "catch" point (e.g., "except ValueError:")
+            catch_node = self.new_node(h, "except_catch")
+            
+            # Connect Catch -> Handler Body
+            if h_entry:
+                catch_node.outgoing.append(CFGEdge(catch_node, h_entry))
+                handler_chains.append((catch_node, h_exit or h_entry)) # Track exit for merging
+            else:
+                handler_chains.append((catch_node, catch_node))
+
+        # 4. Build Finally (Optional)
+        finally_clause = try_node.get_child_by_role("finally_clause")
+        f_entry, f_exit = None, None
+        if finally_clause:
+            f_body = finally_clause.get_child_by_role("finally_body")
+            if f_body:
+                f_stmts = self.extract_statements(f_body)
+                f_entry, f_exit = self.build_block(f_stmts)
+
+        # --- WIRING THE GRAPH ---
+
+        # A. Entry -> Try Body
+        if t_entry:
+            try_entry.outgoing.append(CFGEdge(try_entry, t_entry))
+        
+        # B. Entry -> First Handler (Abstracting the "Crash" jump)
+        # We connect the try_entry to the first handler to represent "Error could happen immediately"
+        if handler_chains:
+            try_entry.outgoing.append(CFGEdge(try_entry, handler_chains[0][0], "exception"))
+            
+            # Chain handlers: Except1 -> Except2 (if match fails)
+            for i in range(len(handler_chains) - 1):
+                current_catch = handler_chains[i][0]
+                next_catch = handler_chains[i+1][0]
+                current_catch.outgoing.append(CFGEdge(current_catch, next_catch, "next_handler"))
+
+        # C. Define the "Convergence Point" (Where do we go after Try/Except?)
+        # If there is a Finally, everyone goes there. If not, everyone goes to TryExit.
+        target_after_execution = f_entry if f_entry else try_exit
+
+        # D. Try Body Success -> Target
+        if t_exit and t_exit.label != "return":
+            t_exit.outgoing.append(CFGEdge(t_exit, target_after_execution))
+            
+        # E. Handler Bodies -> Target
+        for _, h_exit in handler_chains:
+            if h_exit and h_exit.label != "return":
+                h_exit.outgoing.append(CFGEdge(h_exit, target_after_execution))
+
+        # F. Finally -> TryExit
+        if f_exit and f_exit.label != "return":
+            f_exit.outgoing.append(CFGEdge(f_exit, try_exit))
+        elif f_entry: # Empty finally body
+             # (This case needs careful handling, simplified here)
+             if f_entry.label != "return":
+                 f_entry.outgoing.append(CFGEdge(f_entry, try_exit))
+
+        return try_entry, try_exit
+    
+    def build_assert(self, assert_node: ASTNode) -> Tuple[CFGNode, CFGNode]:
+        """Build CFG for assert: distinct crash path on False"""
+        
+        # 1. The Check Node
+        # This acts as the entry point
+        assert_check = self.new_node(assert_node, "assert_check")
+        
+        # 2. The Failure Node (Dead End)
+        # This represents the AssertionError being raised
+        assert_fail = self.new_node(assert_node, "assert_fail")
+        
+        # 3. Connect: Check -> Fail (on False)
+        assert_check.outgoing.append(CFGEdge(assert_check, assert_fail, "false"))
+        
+        # 4. Connect: Check -> Next (on True)
+        # We return (assert_check, assert_check). 
+        # Why? Because build_block automatically connects the 'exit' node 
+        # to the *next* statement in the list.
+        # By returning 'assert_check' as the exit, we implicitly create the "True" edge
+        # when the block builder connects it to the next line.
+        
+        return assert_check, assert_check

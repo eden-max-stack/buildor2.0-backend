@@ -4,44 +4,36 @@ Service layer for building and serializing AST, CFG, and DFG
 from typing import Dict, List, Any, Tuple
 from core_engine.models.ast_models import TreeSitterParser, ASTBuilder, AST, ASTNode
 from core_engine.models.cfg_models import CFGBuilder, CFG, CFGNode, CFGEdge
-from core_engine.models.dfg_models import DFGBuilder, DFG, DFGNode, DFGEdge
-
-# In app/services/graph_service.py
-
-def find_functions(ast_root: ASTNode) -> list[ASTNode]:
-    """
-    Find all functions, including methods inside classes.
-    """
-    functions = []
-    
-    # We use a stack for iterative traversal to find nested functions/methods
-    stack = [ast_root]
-    
-    while stack:
-        node = stack.pop()
-        
-        if node.type == "function_definition":
-            functions.append(node)
-            # We DON'T recurse into the function body to find nested functions
-            # (unless you want to support closures/inner functions)
-            continue
-            
-        # If it's a Class, we MUST look inside it
-        if node.type == "class_definition":
-            # Just add children to stack to keep searching
-            stack.extend(node.children)
-            continue
-            
-        # For modules/blocks, keep searching children
-        stack.extend(node.children)
-            
-    return functions
+from core_engine.models.dfg_models import DFGBuilder, DFG, DFGNode, DFGEdge   
 
 class GraphService:
     """Service for building and serializing all graph representations"""
     
     def __init__(self, source_code: str):
         self.source_code = source_code
+
+    def find_functions(self, ast_root: ASTNode) -> list[ASTNode]:
+        """Recursively find all functions, even inside classes."""
+        functions = []
+        stack = [ast_root]
+        
+        while stack:
+            node = stack.pop()
+            
+            if node.type == "function_definition":
+                functions.append(node)
+                continue # Don't go inside functions (avoids closures)
+                
+            if node.type == "class_definition":
+                # If we hit a class, add its children to the stack
+                # This ensures we find methods like "def solve(self):"
+                stack.extend(node.children)
+                continue
+                
+            # Default: keep searching children
+            stack.extend(node.children)
+                
+        return functions 
     
     def build_all_graphs(self) -> Dict[str, Any]:
         """
@@ -56,7 +48,7 @@ class GraphService:
             ast = AST(ast_root)
             
             # Step 2: Find all functions
-            functions = find_functions(ast_root)
+            functions = self.find_functions(ast_root)
             
             # Step 3: Build CFG and DFG for each function
             function_analyses = []
@@ -299,7 +291,7 @@ class GraphService:
         ast = AST(ast_root)
         
         # Step 2: Find all functions
-        functions = find_functions(ast_root)
+        functions = self.find_functions(ast_root)
         
         # Step 3: Build CFG and DFG for each function
         function_analyses = []

@@ -140,6 +140,39 @@ class ASTBuilder:
                 elif ts_node.type == "as_pattern": 
                      node.role = "context_var"
 
+            elif parent.type == "try_statement":
+                if ts_node.type == "block":
+                    # The main code block being tried
+                    node.role = "try_body"
+                elif ts_node.type == "except_clause":
+                    node.role = "except_clause"
+                elif ts_node.type == "finally_clause":
+                    node.role = "finally_clause"
+                elif ts_node.type == "else_clause":
+                    node.role = "else_clause"
+
+            elif parent.type == "except_clause":
+                if ts_node.type == "block":
+                    node.role = "except_body"
+                elif ts_node.type in ["identifier", "as_pattern"]:
+                    # e.g., "Exception as e" -> 'e' is the variable
+                    node.role = "exception_var"
+
+            elif parent.type == "finally_clause":
+                if ts_node.type == "block":
+                    node.role = "finally_body"
+
+            elif parent.type == "assert_statement":
+                # The first expression is the condition. 
+                # The second (optional) is the error message.
+                if node.role is None and ts_node.type not in ["assert", ","]:
+                    # Simple heuristic: first non-keyword child is condition
+                    existing_conditions = sum(1 for c in parent.children if c.role == "condition")
+                    if existing_conditions == 0:
+                        node.role = "condition"
+                    else:
+                        node.role = "error_message"
+
             elif parent.type == "typed_parameter":
                 if ts_node.type == "identifier":
                     node.role = "parameter_name"

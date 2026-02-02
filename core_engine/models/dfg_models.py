@@ -268,6 +268,18 @@ class DFGBuilder:
                 if iterator:
                     defs.update(self._find_definitions(iterator))
 
+            elif ast_node.type == "except_clause":
+                # Structure: except_clause -> (identifier) OR (as_pattern (identifier) (identifier))
+                # We look for the "exception_var" role we added in ASTBuilder
+                var_node = ast_node.get_child_by_role("exception_var")
+                if var_node:
+                    defs.update(self._find_definitions(var_node))
+
+            elif ast_node.type == "as_pattern":
+                # The second child is usually the alias "e" in "Exception as e"
+                if len(ast_node.children) > 1:
+                    defs.update(self._find_definitions(ast_node.children[1]))
+
             return defs
     
     def _find_uses(self, ast_node: ASTNode) -> Set[str]:
