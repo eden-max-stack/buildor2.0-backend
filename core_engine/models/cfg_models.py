@@ -81,6 +81,8 @@ class CFGBuilder:
                 entry, exit = self.build_while(stmt)
             elif stmt.type == "for_statement":        # <--- ADD THIS BLOCK
                 entry, exit = self.build_for(stmt)
+            elif stmt.type == "with_statement":     # <--- ADD THIS
+                entry, exit = self.build_with(stmt)
             elif stmt.type == "return_statement":
                 entry = exit = self.new_node(stmt, "return")
 
@@ -312,3 +314,42 @@ class CFGBuilder:
         loop_header.outgoing.append(CFGEdge(loop_header, loop_exit, "done"))
 
         return loop_header, loop_exit
+    
+    def build_with(self, with_node: ASTNode) -> Tuple[CFGNode, CFGNode]:
+        """Build CFG for 'with' statement (Context Manager)"""
+        
+        # 1. The Context Entry (e.g., "with open(...) as f")
+        # We treat the context expression as the entry point
+        # Note: Tree-sitter structure varies, but usually first child is 'with', then 'with_clause' or expressions
+        context_expr = with_node.children[1] if len(with_node.children) > 1 else with_node
+        
+        with_entry = self.new_node(context_expr, "with_enter")
+        
+        # 2. The Body
+        body_node = with_node.get_child_by_role("body") # or check for block child
+        if not body_node:
+            # Fallback search for block
+            for child in with_node.children:
+                if child.type == "block":
+                    body_node = child
+                    break
+        
+        if body_node:
+            body_stmts = self.extract_statements(body_node)
+            body_entry, body_exit = self.build_block(body_stmts)
+        else:
+            body_entry = body_exit = None
+
+        # 3. The Context Exit (Synthetic node representing __exit__)
+        with_exit = self.new_node(with_node, "with_exit")
+
+        # 4. Connect
+        if body_entry:
+            with_entry.outgoing.append(CFGEdge(with_entry, body_entry))
+            
+            if body_exit and body_exit.label != "return":
+                body_exit.outgoing.append(CFGEdge(body_exit, with_exit))
+        else:
+            with_entry.outgoing.append(CFGEdge(with_entry, with_exit))
+
+        return with_entry, with_exit
