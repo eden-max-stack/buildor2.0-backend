@@ -6,11 +6,36 @@ from core_engine.models.ast_models import TreeSitterParser, ASTBuilder, AST, AST
 from core_engine.models.cfg_models import CFGBuilder, CFG, CFGNode, CFGEdge
 from core_engine.models.dfg_models import DFGBuilder, DFG, DFGNode, DFGEdge
 
+# In app/services/graph_service.py
+
 def find_functions(ast_root: ASTNode) -> list[ASTNode]:
-    return [
-        node for node in ast_root.traverse_node()
-        if node.type == "function_definition"
-    ]
+    """
+    Find all functions, including methods inside classes.
+    """
+    functions = []
+    
+    # We use a stack for iterative traversal to find nested functions/methods
+    stack = [ast_root]
+    
+    while stack:
+        node = stack.pop()
+        
+        if node.type == "function_definition":
+            functions.append(node)
+            # We DON'T recurse into the function body to find nested functions
+            # (unless you want to support closures/inner functions)
+            continue
+            
+        # If it's a Class, we MUST look inside it
+        if node.type == "class_definition":
+            # Just add children to stack to keep searching
+            stack.extend(node.children)
+            continue
+            
+        # For modules/blocks, keep searching children
+        stack.extend(node.children)
+            
+    return functions
 
 class GraphService:
     """Service for building and serializing all graph representations"""

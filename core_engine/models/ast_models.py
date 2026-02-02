@@ -129,6 +129,17 @@ class ASTBuilder:
                     # This captures "enumerate(nums)" in "for ... in enumerate(nums)"
                     node.role = "loop_iterable"
 
+            elif parent.type == "with_statement":
+                if ts_node.type == "with_clause":
+                    # e.g., "open(...) as f"
+                    node.role = "context_expr"
+                elif ts_node.type == "block":
+                    # The code inside the with-block
+                    node.role = "body"
+                # Some parsers put 'as' or 'identifier' directly as children
+                elif ts_node.type == "as_pattern": 
+                     node.role = "context_var"
+
             elif parent.type == "typed_parameter":
                 if ts_node.type == "identifier":
                     node.role = "parameter_name"
