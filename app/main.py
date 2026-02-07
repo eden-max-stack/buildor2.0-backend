@@ -1,5 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.infrastructure.database import Base, engine
+
+from app.domains.user.router import router as user_router
+from app.domains.question.router import router as question_router
+from app.domains.submission.router import router as submission_router
+from app.domains.leaderboard.router import router as leaderboard_router
+from app.domains.professor_analytics.router import router as analytics_router
+from app.domains.code_analysis.router import router as analysis_router
 
 app = FastAPI(title="Buildor Backend")
 
@@ -19,3 +27,12 @@ app.include_router(
     prefix="/api/v1/graph",
     tags=["Graph Analysis"]
 )
+
+Base.metadata.create_all(bind=engine)
+
+app.include_router(user_router)
+app.include_router(question_router)
+app.include_router(submission_router)
+app.include_router(leaderboard_router)
+app.include_router(analytics_router)
+app.include_router(analysis_router)
