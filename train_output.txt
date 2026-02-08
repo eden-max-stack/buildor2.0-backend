@@ -1,59 +1,58 @@
---- Starting GNN Training Log ---
---- Starting GNN Training (With Logic Fixes) ---
-Device: cpu
-Loaded 164 training problems.
-Epoch 1: Loss = 0.7852 | Acc = 67.11% (51/76)
-Epoch 2: Loss = 0.6421 | Acc = 72.86% (51/70)
-Epoch 3: Loss = 0.6781 | Acc = 65.79% (50/76)
-Epoch 4: Loss = 0.6417 | Acc = 69.33% (52/75)
-Epoch 5: Loss = 0.5802 | Acc = 72.37% (55/76)
-Epoch 6: Loss = 0.6199 | Acc = 65.22% (45/69)
-Epoch 7: Loss = 0.6139 | Acc = 72.37% (55/76)
-Epoch 8: Loss = 0.5563 | Acc = 71.64% (48/67)
-Epoch 9: Loss = 0.6214 | Acc = 64.10% (50/78)
-Epoch 10: Loss = 0.6572 | Acc = 60.87% (42/69)
-Model saved.
-Epoch 11: Loss = 0.6032 | Acc = 67.14% (47/70)
-Epoch 12: Loss = 0.6175 | Acc = 63.86% (53/83)
-Epoch 13: Loss = 0.6089 | Acc = 71.23% (52/73)
-Epoch 14: Loss = 0.5972 | Acc = 70.67% (53/75)
-Epoch 15: Loss = 0.5461 | Acc = 66.67% (50/75)
-Epoch 16: Loss = 0.6899 | Acc = 55.13% (43/78)
-Epoch 17: Loss = 0.5202 | Acc = 73.61% (53/72)
-Epoch 18: Loss = 0.5423 | Acc = 65.06% (54/83)
-Epoch 19: Loss = 0.4462 | Acc = 80.77% (63/78)
-Epoch 20: Loss = 0.6011 | Acc = 68.29% (56/82)
-Model saved.
-Epoch 21: Loss = 0.5458 | Acc = 68.00% (51/75)
-Epoch 22: Loss = 0.6484 | Acc = 46.97% (31/66)
-Epoch 23: Loss = 0.5649 | Acc = 66.23% (51/77)
-Epoch 24: Loss = 0.5710 | Acc = 61.33% (46/75)
-Epoch 25: Loss = 0.5219 | Acc = 54.05% (40/74)
-Epoch 26: Loss = 0.5525 | Acc = 63.16% (48/76)
-Epoch 27: Loss = 0.5669 | Acc = 59.15% (42/71)
-Epoch 28: Loss = 0.5073 | Acc = 68.49% (50/73)
-Epoch 29: Loss = 0.4633 | Acc = 74.67% (56/75)
-Epoch 30: Loss = 0.5157 | Acc = 68.92% (51/74)
-Model saved.
-Epoch 31: Loss = 0.4929 | Acc = 72.62% (61/84)
-Epoch 32: Loss = 0.3830 | Acc = 78.95% (60/76)
-Epoch 33: Loss = 0.6451 | Acc = 58.67% (44/75)
-Epoch 34: Loss = 0.5878 | Acc = 68.57% (48/70)
-Epoch 35: Loss = 0.4988 | Acc = 64.20% (52/81)
-Epoch 36: Loss = 0.4936 | Acc = 70.67% (53/75)
-Epoch 37: Loss = 0.5293 | Acc = 70.42% (50/71)
-Epoch 38: Loss = 0.5164 | Acc = 72.37% (55/76)
-Epoch 39: Loss = 0.5374 | Acc = 72.46% (50/69)
-Epoch 40: Loss = 0.4917 | Acc = 73.91% (51/69)
-Model saved.
-Epoch 41: Loss = 0.5380 | Acc = 58.11% (43/74)
-Epoch 42: Loss = 0.4748 | Acc = 63.01% (46/73)
-Epoch 43: Loss = 0.5353 | Acc = 71.43% (50/70)
-Epoch 44: Loss = 0.5700 | Acc = 57.33% (43/75)
-Epoch 45: Loss = 0.5286 | Acc = 64.00% (48/75)
-Epoch 46: Loss = 0.5433 | Acc = 60.81% (45/74)
-Epoch 47: Loss = 0.4835 | Acc = 64.20% (52/81)
-Epoch 48: Loss = 0.5335 | Acc = 61.04% (47/77)
-Epoch 49: Loss = 0.5839 | Acc = 49.37% (39/79)
-Epoch 50: Loss = 0.4962 | Acc = 65.43% (53/81)
-Model saved.
+--- Starting V3 Training (Detect, Locate, Patch) ---
+--- Starting V3 Training ---
+Loaded 164 problems.
+Epoch 1: Loss=1.4352 | Cls_Acc=43.66%
+Epoch 2: Loss=1.1554 | Cls_Acc=38.67%
+Epoch 3: Loss=0.9748 | Cls_Acc=65.38%
+Epoch 4: Loss=0.9801 | Cls_Acc=64.94%
+Epoch 5: Loss=1.0038 | Cls_Acc=44.59%
+Epoch 6: Loss=1.0334 | Cls_Acc=54.32%
+Epoch 7: Loss=1.0056 | Cls_Acc=55.22%
+Epoch 8: Loss=1.0399 | Cls_Acc=42.11%
+Epoch 9: Loss=0.9602 | Cls_Acc=56.72%
+Epoch 10: Loss=1.0200 | Cls_Acc=56.96%
+Model and Vocab saved.
+Epoch 11: Loss=0.9850 | Cls_Acc=55.70%
+Epoch 12: Loss=0.9575 | Cls_Acc=59.72%
+Epoch 13: Loss=1.0019 | Cls_Acc=50.72%
+Epoch 14: Loss=0.8533 | Cls_Acc=61.64%
+Epoch 15: Loss=0.9720 | Cls_Acc=57.53%
+Epoch 16: Loss=1.0315 | Cls_Acc=55.26%
+Epoch 17: Loss=1.0517 | Cls_Acc=47.89%
+Epoch 18: Loss=1.0212 | Cls_Acc=54.67%
+Epoch 19: Loss=1.0533 | Cls_Acc=50.72%
+Epoch 20: Loss=1.0545 | Cls_Acc=47.37%
+Model and Vocab saved.
+Epoch 21: Loss=1.0012 | Cls_Acc=58.11%
+Epoch 22: Loss=1.0994 | Cls_Acc=44.12%
+Epoch 23: Loss=1.0555 | Cls_Acc=49.32%
+Epoch 24: Loss=0.9993 | Cls_Acc=49.38%
+Epoch 25: Loss=0.8863 | Cls_Acc=59.72%
+Epoch 26: Loss=0.9961 | Cls_Acc=48.68%
+Epoch 27: Loss=0.9113 | Cls_Acc=60.81%
+Epoch 28: Loss=1.0374 | Cls_Acc=53.33%
+Epoch 29: Loss=1.0260 | Cls_Acc=52.86%
+Epoch 30: Loss=0.9676 | Cls_Acc=55.07%
+Model and Vocab saved.
+Epoch 31: Loss=0.9070 | Cls_Acc=62.32%
+Epoch 32: Loss=0.8957 | Cls_Acc=62.34%
+Epoch 33: Loss=0.9733 | Cls_Acc=47.30%
+Epoch 34: Loss=0.9389 | Cls_Acc=57.53%
+Epoch 35: Loss=0.9135 | Cls_Acc=54.55%
+Epoch 36: Loss=0.8958 | Cls_Acc=62.34%
+Epoch 37: Loss=0.9417 | Cls_Acc=57.69%
+Epoch 38: Loss=0.9936 | Cls_Acc=57.35%
+Epoch 39: Loss=1.0208 | Cls_Acc=49.32%
+Epoch 40: Loss=0.8523 | Cls_Acc=60.81%
+Model and Vocab saved.
+Epoch 41: Loss=0.8926 | Cls_Acc=65.28%
+Epoch 42: Loss=0.9887 | Cls_Acc=58.11%
+Epoch 43: Loss=1.0207 | Cls_Acc=55.41%
+Epoch 44: Loss=0.9485 | Cls_Acc=60.76%
+Epoch 45: Loss=0.8781 | Cls_Acc=63.77%
+Epoch 46: Loss=0.8642 | Cls_Acc=62.50%
+Epoch 47: Loss=0.9781 | Cls_Acc=62.82%
+Epoch 48: Loss=0.9303 | Cls_Acc=51.95%
+Epoch 49: Loss=0.8797 | Cls_Acc=66.67%
+Epoch 50: Loss=0.8867 | Cls_Acc=62.16%
+Model and Vocab saved.

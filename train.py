@@ -7,177 +7,191 @@ import random
 import sys
 import os
 
-# Imports
 from app.services.graph_service import GraphService
 from core_engine.models.gnn_models import HintGeneratorGNN
 from core_engine.mutator import generate_buggy_code
 
 # --- Config ---
 DATASET_PATH = 'human-eval-v2-20210705.jsonl'
-LOG_FILE = 'train_output.txt'  # New Config
+LOG_FILE = 'train_output.txt'
+VOCAB_FILE = 'vocab.json'   
 EPOCHS = 50
 LR = 0.001
 EMBED_DIM = 64
 BUG_TYPES = ["None", "Operator Error", "Logic Error", "Missing Return", "Syntax"]
 TYPE_TO_IDX = {t: i for i, t in enumerate(BUG_TYPES)}
+MAX_VOCAB_SIZE = 500
 
-# This acts as the model's "Vocabulary"
-NODE_TYPE_VECTORS = {} 
+# --- VOCABULARY ---
+NODE_TYPE_MAP = {"UNK": 0} 
+NEXT_ID = 1
 
-def get_node_vector(node_type, dim):
-    """Returns a STABLE random vector for a given node type"""
-    if node_type not in NODE_TYPE_VECTORS:
-        NODE_TYPE_VECTORS[node_type] = torch.randn(dim)
-    return NODE_TYPE_VECTORS[node_type]
+def get_type_id(node_type):
+    global NEXT_ID
+    if node_type not in NODE_TYPE_MAP:
+        # If we exceed vocabulary, we clamp to UNK (0) or wrap around
+        # For this prototype, we just cap it to avoid crash
+        if NEXT_ID >= MAX_VOCAB_SIZE: return 0 
+        NODE_TYPE_MAP[node_type] = NEXT_ID
+        NEXT_ID += 1
+    return NODE_TYPE_MAP[node_type]
+
+def save_vocab():
+    """Saves the learned vocabulary so inference uses the same IDs"""
+    with open(VOCAB_FILE, 'w') as f:
+        json.dump(NODE_TYPE_MAP, f)
 
 def log_print(message):
-    """Helper: Prints to console AND appends to file"""
     print(message)
     with open(LOG_FILE, 'a') as f:
         f.write(message + '\n')
 
 def graph_to_tensor(graph_dict):
-    """Convert serialized graph dict to PyG Data object"""
     nodes = graph_dict['nodes']
     edges = graph_dict['edges']
     
-    # 1. Create Semantic Node Features
-    feature_list = []
-    
+    type_ids = []
     for node in nodes:
-        # Try 'type' (AST) first, then 'ast_node_type' (CFG), then 'label'
-        n_type = node.get('type') or node.get('ast_node_type')
-        if not n_type:
-            n_type = node.get('label', 'UNK')
-            
-        vec = get_node_vector(str(n_type), EMBED_DIM)
-        feature_list.append(vec)
+        n_type = node.get('type') or node.get('ast_node_type') or 'UNK'
+        type_ids.append(get_type_id(str(n_type)))
 
-    x = torch.stack(feature_list)
+    x = torch.tensor(type_ids, dtype=torch.long)
     
-    # 2. Create Edge Index
     if not edges:
         return Data(x=x, edge_index=torch.empty((2, 0), dtype=torch.long))
         
     src = [e['source'] for e in edges]
     dst = [e['target'] for e in edges]
     edge_index = torch.tensor([src, dst], dtype=torch.long)
-    
     return Data(x=x, edge_index=edge_index)
 
 def train():
-    # Initialize Log File (Clear previous run)
     with open(LOG_FILE, 'w') as f:
-        f.write("--- Starting GNN Training Log ---\n")
+        f.write("--- Starting V3 Training (Detect, Locate, Patch) ---\n")
 
-    log_print("--- Starting GNN Training (With Logic Fixes) ---")
-    
-    # 1. Initialize Model
+    log_print("--- Starting V3 Training ---")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    log_print(f"Device: {device}")
     
-    model = HintGeneratorGNN(input_dim=EMBED_DIM, hidden_dim=128, num_classes=len(BUG_TYPES))
+    model = HintGeneratorGNN(MAX_VOCAB_SIZE, EMBED_DIM, 128, len(BUG_TYPES))
     model = model.to(device)
     
     optimizer = optim.Adam(model.parameters(), lr=LR)
-    cls_criterion = nn.CrossEntropyLoss()
-    # loc_criterion = nn.BCELoss() # Disabled for now
+    
+    class_weights = torch.tensor([1.0, 5.0, 5.0, 5.0, 5.0]).to(device)
+    
+    # LOSS FUNCTIONS
+    criterion_cls = nn.CrossEntropyLoss()
+    criterion_loc = nn.BCELoss() # Binary Cross Entropy for "Is this node buggy?"
+    criterion_patch = nn.CrossEntropyLoss() # "What token ID belongs here?"
 
-    # 2. Load Data
     problems = []
     with open(DATASET_PATH, 'r') as f:
         for line in f:
             problems.append(json.loads(line))
-    log_print(f"Loaded {len(problems)} training problems.")
+    log_print(f"Loaded {len(problems)} problems.")
 
-    # 3. Training Loop
     model.train()
     for epoch in range(EPOCHS):
         total_loss = 0
-        correct_preds = 0
+        correct_cls = 0
         num_processed = 0 
         
-        # Shuffle for stochasticity
         random.shuffle(problems)
         
-        # We try 100, but we might skip many if mutator fails
         for i, prob in enumerate(problems[:100]): 
             optimizer.zero_grad()
             
-            # A. Prepare Data
             correct_code = prob['prompt'] + prob['canonical_solution']
             
-            if random.random() < 0.5:
-                # Bug Case
-                buggy_code, bug_type, bug_line = generate_buggy_code(correct_code)
-                if not buggy_code: 
-                    continue # Skip if we couldn't generate a bug
-                target_cls = TYPE_TO_IDX.get(bug_type, 0)
+            # 1. Generate Bug
+            if random.random() < 0.6: # 60% Buggy
+                buggy_code, metadata = generate_buggy_code(correct_code)
+                if not buggy_code: continue 
+                
+                target_cls = TYPE_TO_IDX.get(metadata.bug_type, 0)
                 is_buggy = True
             else:
-                # Correct Case
                 buggy_code = correct_code
+                metadata = None
                 target_cls = TYPE_TO_IDX["None"]
-                bug_line = -1
                 is_buggy = False
 
             try:
-                # B. Build Graphs
-                user_service = GraphService(buggy_code)
-                opt_service = GraphService(correct_code)
+                # 2. Build Graphs
+                u_graphs = GraphService(buggy_code).build_all_graphs()
+                o_graphs = GraphService(correct_code).build_all_graphs()
                 
-                u_graphs = user_service.build_all_graphs()
-                o_graphs = opt_service.build_all_graphs()
-                
-                # Use AST for better accuracy
-                if 'ast' in u_graphs and 'ast' in o_graphs:
-                    u_data = u_graphs['ast']
-                    o_data = o_graphs['ast']
-                else:
-                    # Fallback to function CFG
-                    if not u_graphs['functions'] or not o_graphs['functions']: continue
-                    u_data = u_graphs['functions'][0]['cfg']
-                    o_data = o_graphs['functions'][0]['cfg']
+                u_data = u_graphs['ast'] if 'ast' in u_graphs else u_graphs['functions'][0]['cfg']
+                o_data = o_graphs['ast'] if 'ast' in o_graphs else o_graphs['functions'][0]['cfg']
 
-                # Convert to Tensors
                 t_user = graph_to_tensor(u_data).to(device)
                 t_opt = graph_to_tensor(o_data).to(device)
 
-                # C. Forward Pass
-                cls_logits, loc_logits = model(t_user, t_opt)
+                # 3. Forward Pass
+                cls_out, loc_out, patch_out = model(t_user, t_opt)
                 
-                # D. Compute Loss
-                loss_cls = cls_criterion(cls_logits.unsqueeze(0), torch.tensor([target_cls], device=device))
+                # 4. Compute Losses
                 
-                loss = loss_cls 
+                # A. Classification Loss (Always active)
+                loss_cls = criterion_cls(cls_out.unsqueeze(0), torch.tensor([target_cls], device=device))
+                
+                loss_loc = 0
+                loss_patch = 0
+                
+                if is_buggy and metadata:
+                    # B. Localization Target
+                    # Find the node in the graph that matches the bug's line number
+                    bug_node_idx = -1
+                    
+                    # Heuristic: Find first node on the bug line
+                    for idx, node in enumerate(u_data['nodes']):
+                        # We use 'start_line' which we added to GraphService
+                        if node.get('start_line') == metadata.lineno:
+                            bug_node_idx = idx
+                            break
+                    
+                    if bug_node_idx != -1:
+                        # Target: All zeros, except 1.0 at bug index
+                        target_loc = torch.zeros((t_user.x.shape[0], 1), device=device)
+                        target_loc[bug_node_idx] = 1.0
+                        loss_loc = criterion_loc(loc_out, target_loc)
+
+                        target_token_str = metadata.original_token
+                        target_token_id = get_type_id(str(target_token_str))
+
+                        pred_logits = patch_out[bug_node_idx].unsqueeze(0) # [1, Vocab_Size]
+
+                        loss_patch = criterion_patch(pred_logits, torch.tensor([target_token_id], device=device))
+
+                
+                # Combined Loss
+                # We weight Localization lower because it's harder and sparse
+                loss = loss_cls + (0.5 * loss_loc) + (0.5 * loss_patch)
+                
                 loss.backward()
                 optimizer.step()
                 
                 num_processed += 1 
                 total_loss += loss.item()
                 
-                pred_cls = torch.argmax(cls_logits).item()
-                if pred_cls == target_cls:
-                    correct_preds += 1
+                if torch.argmax(cls_logits := cls_out).item() == target_cls:
+                    correct_cls += 1
 
             except Exception as e:
-                log_print(f"[CRITICAL ERROR] Failed on {prob['task_id']}: {str(e)}")
-                import traceback
-                traceback.print_exc() # This prints the full red error trace to your console
+                # log_print(f"[ERROR] {e}")
                 continue
 
-        # --- Report Stats ---
         if num_processed > 0:
-            actual_acc = (correct_preds / num_processed) * 100
+            actual_acc = (correct_cls / num_processed) * 100
             avg_loss = total_loss / num_processed
-            log_print(f"Epoch {epoch+1}: Loss = {avg_loss:.4f} | Acc = {actual_acc:.2f}% ({correct_preds}/{num_processed})")
+            log_print(f"Epoch {epoch+1}: Loss={avg_loss:.4f} | Cls_Acc={actual_acc:.2f}%")
         else:
-            log_print(f"Epoch {epoch+1}: Skipped all samples (Mutator found nothing to break)")
+            log_print(f"Epoch {epoch+1}: Skipped all")
         
-        # Save Checkpoint
         if (epoch+1) % 10 == 0:
-            torch.save(model.state_dict(), f"gnn_model_v1_ep{epoch+1}.pth")
-            log_print("Model saved.")
+            torch.save(model.state_dict(), f"gnn_model_v3_ep{epoch+1}.pth")
+            save_vocab() # <--- IMPORTANT
+            log_print("Model and Vocab saved.")
 
 if __name__ == "__main__":
     train()

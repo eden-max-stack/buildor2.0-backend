@@ -174,13 +174,16 @@ class GraphService:
                 node = queue.pop(0)
                 if node.id in visited: continue
                 visited.add(node.id)
+
+                start_line = getattr(node, 'start_point', [0, 0])[0] + 1
                 
                 # 1. Add Node
                 nodes.append({
                     "id": node.id,
                     "type": node.type,
                     "role": node.role,
-                    "text": node.get_text(self.source_code) if node.type == "identifier" else ""
+                    "text": node.get_text(self.source_code) if node.type == "identifier" else "",
+                    "start_line": start_line
                 })
                 
                 # 2. Add Edges to Children

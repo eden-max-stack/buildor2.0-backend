@@ -1,1 +1,13 @@
 venv/
+
+gnn_model_v1_ep10.pth
+gnn_model_v1_ep20.pth
+gnn_model_v1_ep30.pth
+gnn_model_v1_ep40.pth
+gnn_model_v1_ep50.pth
+
+gnn_model_v3_ep10.pth
+gnn_model_v3_ep20.pth
+gnn_model_v3_ep30.pth
+gnn_model_v3_ep40.pth
+gnn_model_v3_ep50.pth
