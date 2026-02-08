@@ -161,22 +161,44 @@ class GraphService:
     def _serialize_ast(self, ast: AST) -> Dict[str, Any]:
         """Convert AST to JSON-serializable format"""
         
-        def serialize_node(node: ASTNode) -> Dict[str, Any]:
-            return {
-                "id": node.id,
-                "type": node.type,
-                "role": node.role,
-                "symbol": node.symbol,
-                "operator": node.operator,
-                "text": node.get_text(self.source_code),
-                "source_span": node.source_span,
-                "children": [serialize_node(child) for child in node.children]
-            }
+        def serialize_node(root: ASTNode) -> Dict[str, Any]:
+            """Converts nested ASTNode tree into flat nodes/edges lists."""
+            nodes = []
+            edges = []
+            
+            # BFS Traversal
+            queue = [root]
+            visited = set()
+            
+            while queue:
+                node = queue.pop(0)
+                if node.id in visited: continue
+                visited.add(node.id)
+                
+                # 1. Add Node
+                nodes.append({
+                    "id": node.id,
+                    "type": node.type,
+                    "role": node.role,
+                    "text": node.get_text(self.source_code) if node.type == "identifier" else ""
+                })
+                
+                # 2. Add Edges to Children
+                for child in node.children:
+                    edges.append({
+                        "source": node.id, 
+                        "target": child.id,
+                        "relation": "ast_child"
+                    })
+                    queue.append(child)
+                    
+            return {"nodes": nodes, "edges": edges}
         
-        return {
-            "root": serialize_node(ast.root),
-            "node_count": len(list(ast.traverse()))
-        }
+        # return {
+        #     "root": serialize_node(ast.root),
+        #     "node_count": len(list(ast.traverse()))
+        # }
+        return serialize_node(ast.root)
     
     def _serialize_cfg(self, cfg: CFG) -> Dict[str, Any]:
         """Convert CFG to JSON-serializable format for D3.js"""
