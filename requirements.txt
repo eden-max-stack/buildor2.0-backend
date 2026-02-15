@@ -5,4 +5,4 @@ pydantic
 uvicorn
 torch
 torch-geometric
-pandass
+pandas
