@@ -1,0 +1,557 @@
+{
+  "info": {
+    "_postman_id": "3561b000-8a21-419d-b4d7-175bf3e3235a",
+    "name": "buildor",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "49248718",
+    "_collection_link": "https://go.postman.co/collection/49248718-3561b000-8a21-419d-b4d7-175bf3e3235a?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "leaderboard",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "users",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "leaderboard: user/{user_id} - not a student",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "leaderboard: user/{user_id}",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "trainer-analytics: overview",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "trainer-analytics: classes",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "trainer-analytics: feedback - mark read",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "trainer-analytics: feedback - respond",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "classes: classes/{class_id}/questions",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"trainer_id\": \"10000000-0000-0000-0000-000000000001\",\r\n  \"question_data\": {\r\n    \"title\": \"Two Sum Problem\",\r\n  \"description\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice. You can return the answer in any order.\",\r\n  \"difficulty\": \"Easy\",\r\n  \"tags\": [\"Arrays\", \"Hash Table\"],\r\n  \"constraints\": [\r\n    \"2 <= nums.length <= 10^4\",\r\n    \"-10^9 <= nums[i] <= 10^9\",\r\n    \"-10^9 <= target <= 10^9\",\r\n    \"Only one valid answer exists\"\r\n  ],\r\n  \"optimal_solution\": \"def twoSum(nums, target):\\n    seen = {}\\n    for i, num in enumerate(nums):\\n        complement = target - num\\n        if complement in seen:\\n            return [seen[complement], i]\\n        seen[num] = i\\n    return []\",\r\n  \"time_complexity\": \"O(n)\",\r\n  \"space_complexity\": \"O(n)\",\r\n  \"test_cases\": [\r\n    {\r\n      \"input\": {\"nums\": [2, 7, 11, 15], \"target\": 9},\r\n      \"expected_output\": [0, 1],\r\n      \"is_sample\": true,\r\n      \"is_hidden\": false,\r\n      \"difficulty\": \"basic\",\r\n      \"order_index\": 0\r\n    },\r\n    {\r\n      \"input\": {\"nums\": [3, 2, 4], \"target\": 6},\r\n      \"expected_output\": [1, 2],\r\n      \"is_sample\": true,\r\n      \"is_hidden\": false,\r\n      \"difficulty\": \"basic\",\r\n      \"order_index\": 1\r\n    },\r\n    {\r\n      \"input\": {\"nums\": [3, 3], \"target\": 6},\r\n      \"expected_output\": [0, 1],\r\n      \"is_sample\": false,\r\n      \"is_hidden\": true,\r\n      \"difficulty\": \"edge\",\r\n      \"order_index\": 2\r\n    }\r\n  ]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/classes/class-1-1/questions",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "classes",
+            "class-1-1",
+            "questions"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "classes: classes/{class_id}/questions - get",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"trainer_id\": \"10000000-0000-0000-0000-000000000001\",\r\n  \"question_data\": {\r\n    \"title\": \"Two Sum Problem\",\r\n  \"description\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice. You can return the answer in any order.\",\r\n  \"difficulty\": \"Easy\",\r\n  \"tags\": [\"Arrays\", \"Hash Table\"],\r\n  \"constraints\": [\r\n    \"2 <= nums.length <= 10^4\",\r\n    \"-10^9 <= nums[i] <= 10^9\",\r\n    \"-10^9 <= target <= 10^9\",\r\n    \"Only one valid answer exists\"\r\n  ],\r\n  \"optimal_solution\": \"def twoSum(nums, target):\\n    seen = {}\\n    for i, num in enumerate(nums):\\n        complement = target - num\\n        if complement in seen:\\n            return [seen[complement], i]\\n        seen[num] = i\\n    return []\",\r\n  \"time_complexity\": \"O(n)\",\r\n  \"space_complexity\": \"O(n)\",\r\n  \"test_cases\": [\r\n    {\r\n      \"input\": {\"nums\": [2, 7, 11, 15], \"target\": 9},\r\n      \"expected_output\": [0, 1],\r\n      \"is_sample\": true,\r\n      \"is_hidden\": false,\r\n      \"difficulty\": \"basic\",\r\n      \"order_index\": 0\r\n    },\r\n    {\r\n      \"input\": {\"nums\": [3, 2, 4], \"target\": 6},\r\n      \"expected_output\": [1, 2],\r\n      \"is_sample\": true,\r\n      \"is_hidden\": false,\r\n      \"difficulty\": \"basic\",\r\n      \"order_index\": 1\r\n    },\r\n    {\r\n      \"input\": {\"nums\": [3, 3], \"target\": 6},\r\n      \"expected_output\": [0, 1],\r\n      \"is_sample\": false,\r\n      \"is_hidden\": true,\r\n      \"difficulty\": \"edge\",\r\n      \"order_index\": 2\r\n    }\r\n  ]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/classes/class-1-1/questions",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "classes",
+            "class-1-1",
+            "questions"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "classes: classes/questions/{question_id} - patch",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"trainer_id\": \"10000000-0000-0000-0000-000000000001\",\r\n  \"question_data\": {\r\n    \"title\": \"Two Sum Problem\",\r\n  \"description\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice. You can return the answer in any order.\",\r\n  \"difficulty\": \"Easy\",\r\n  \"tags\": [\"Arrays\", \"Hash Table\"],\r\n  \"constraints\": [\r\n    \"2 <= nums.length <= 10^4\",\r\n    \"-10^9 <= nums[i] <= 10^9\",\r\n    \"-10^9 <= target <= 10^9\",\r\n    \"Only one valid answer exists\"\r\n  ],\r\n  \"optimal_solution\": \"def twoSum(nums, target):\\n    seen = {}\\n    for i, num in enumerate(nums):\\n        complement = target - num\\n        if complement in seen:\\n            return [seen[complement], i]\\n        seen[num] = i\\n    return []\",\r\n  \"time_complexity\": \"O(n)\",\r\n  \"space_complexity\": \"O(n)\",\r\n  \"test_cases\": [\r\n    {\r\n      \"input\": {\"nums\": [2, 7, 11, 15], \"target\": 9},\r\n      \"expected_output\": [0, 1],\r\n      \"is_sample\": true,\r\n      \"is_hidden\": false,\r\n      \"difficulty\": \"basic\",\r\n      \"order_index\": 0\r\n    },\r\n    {\r\n      \"input\": {\"nums\": [3, 2, 4], \"target\": 6},\r\n      \"expected_output\": [1, 2],\r\n      \"is_sample\": true,\r\n      \"is_hidden\": false,\r\n      \"difficulty\": \"basic\",\r\n      \"order_index\": 1\r\n    },\r\n    {\r\n      \"input\": {\"nums\": [3, 3], \"target\": 6},\r\n      \"expected_output\": [0, 1],\r\n      \"is_sample\": false,\r\n      \"is_hidden\": true,\r\n      \"difficulty\": \"edge\",\r\n      \"order_index\": 2\r\n    }\r\n  ]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/classes/class-1-1/questions",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "classes",
+            "class-1-1",
+            "questions"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id}",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} - patch",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"username\": \"johndoe\",\r\n  \"profile_description\": \"Full-stack developer passionate about building scalable web applications and solving complex problems.\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /readme",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"username\": \"johndoe\",\r\n  \"profile_description\": \"Full-stack developer passionate about building scalable web applications and solving complex problems.\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /readme - patch",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/readme",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "readme"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /contributions",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/readme",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "readme"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /questions-solved",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/readme",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "readme"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /academic-info",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/readme",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "readme"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /academic-info - post",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/readme",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "readme"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /academic-info - patch",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"gpa\": 3.92,\r\n  \"expected_graduation\": \"December 2025\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/academic-info",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "academic-info"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /external-links",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/external-links",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "external-links"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /external-links - post",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/external-links",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "external-links"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /external-links - patch",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/external-links",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "external-links"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id} /external-links - delete",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/external-links",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "external-links"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id}/professor-feedback",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"portfolio_readme\": \"# John Doe's Portfolio\\n\\n## About Me\\nI'm a full-stack developer passionate about building scalable applications.\\n\\n## Skills\\n- JavaScript/TypeScript\\n- Python\\n- React\\n- Node.js\\n- PostgreSQL\\n\\n## Projects\\nComing soon!\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/20000000-0000-0000-0000-000000000001/external-links",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "20000000-0000-0000-0000-000000000001",
+            "external-links"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "profile: profile/{user_id}/professor-feedback - post",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"professor_id\": \"30000000-0000-0000-0000-000000000001\",\r\n  \"feedback_data\": {\r\n    \"student_id\": \"20000000-0000-0000-0000-000000000001\",\r\n  \"course_name\": \"Data Structures & Algorithms\",\r\n  \"course_code\": \"CS201\",\r\n  \"feedback_text\": \"Outstanding performance throughout the semester. John demonstrated exceptional problem-solving skills and a deep understanding of complex algorithms. His final project was particularly impressive, showing creativity and technical excellence.\",\r\n  \"rating\": 5\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{HOST_URL}}/profile/professor-feedback",
+          "host": [
+            "{{HOST_URL}}"
+          ],
+          "path": [
+            "profile",
+            "professor-feedback"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

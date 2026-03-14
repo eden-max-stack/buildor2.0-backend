@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 # Use environment variable for production (Supabase PostgreSQL)
 # Falls back to SQLite for local development
 _base_dir = Path(__file__).resolve().parents[2]
+load_dotenv(_base_dir / ".env.dev")
 load_dotenv(_base_dir / ".env.local")
 load_dotenv(_base_dir / ".env")
 
