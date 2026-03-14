@@ -46,4 +46,3 @@ for fn in functions:
     print("DFG:")
     dfg = dfg_builder.build(fn, cfg)
     dfg.print_pretty()
-

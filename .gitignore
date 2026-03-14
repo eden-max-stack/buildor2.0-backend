@@ -6,3 +6,7 @@ __pycache__/
 *.db
 *.sqlite
 *.log
+.env
+.env.dev
+.env.local
+.env.test

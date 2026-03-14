@@ -9,6 +9,8 @@ from core_engine.models.dfg_models import DFGBuilder, DFG, DFGNode, DFGEdge
 class GraphService:
     """Service for building and serializing all graph representations"""
     
+    DEBUG = False  # Set True for verbose CFG/DFG serialization output
+    
     def __init__(self, source_code: str):
         self.source_code = source_code
 
@@ -161,29 +163,55 @@ class GraphService:
     def _serialize_ast(self, ast: AST) -> Dict[str, Any]:
         """Convert AST to JSON-serializable format"""
         
-        def serialize_node(node: ASTNode) -> Dict[str, Any]:
-            return {
-                "id": node.id,
-                "type": node.type,
-                "role": node.role,
-                "symbol": node.symbol,
-                "operator": node.operator,
-                "text": node.get_text(self.source_code),
-                "source_span": node.source_span,
-                "children": [serialize_node(child) for child in node.children]
-            }
+        def serialize_node(root: ASTNode) -> Dict[str, Any]:
+            """Converts nested ASTNode tree into flat nodes/edges lists."""
+            nodes = []
+            edges = []
+            
+            # BFS Traversal
+            queue = [root]
+            visited = set()
+            
+            while queue:
+                node = queue.pop(0)
+                if node.id in visited: continue
+                visited.add(node.id)
+
+                start_line = node.start_line
+                
+                # 1. Add Node
+                nodes.append({
+                    "id": node.id,
+                    "type": node.type,
+                    "role": node.role,
+                    "text": node.get_text(self.source_code) if node.type == "identifier" else "",
+                    "start_line": start_line
+                })
+                
+                # 2. Add Edges to Children
+                for child in node.children:
+                    edges.append({
+                        "source": node.id, 
+                        "target": child.id,
+                        "relation": "ast_child"
+                    })
+                    queue.append(child)
+                    
+            return {"nodes": nodes, "edges": edges}
         
-        return {
-            "root": serialize_node(ast.root),
-            "node_count": len(list(ast.traverse()))
-        }
+        # return {
+        #     "root": serialize_node(ast.root),
+        #     "node_count": len(list(ast.traverse()))
+        # }
+        return serialize_node(ast.root)
     
     def _serialize_cfg(self, cfg: CFG) -> Dict[str, Any]:
         """Convert CFG to JSON-serializable format for D3.js"""
         
-        print(f"\n=== DEBUG: CFG Serialization ===")
-        print(f"Total nodes in cfg.nodes: {len(cfg.nodes)}")
-        print("Nodes in cfg.nodes:", [f"{n.id}:{n.label}" for n in cfg.nodes])
+        if self.DEBUG:
+            print(f"\n=== DEBUG: CFG Serialization ===")
+            print(f"Total nodes in cfg.nodes: {len(cfg.nodes)}")
+            print("Nodes in cfg.nodes:", [f"{n.id}:{n.label}" for n in cfg.nodes])
         
         nodes = []
         edges = []
@@ -197,21 +225,16 @@ class GraphService:
                 "ast_node_type": node.ast_node.type if node.ast_node else None
             })
         
-        print(f"\nEdges found:")
-        edge_count = 0
         # Serialize edges
         for node in cfg.nodes:
             for edge in node.outgoing:
-                edge_count += 1
-                print(f"  {edge.source.id}:{edge.source.label} -> {edge.target.id}:{edge.target.label} (cond: {edge.condition})")
+                if self.DEBUG:
+                    print(f"  {edge.source.id}:{edge.source.label} -> {edge.target.id}:{edge.target.label} (cond: {edge.condition})")
                 edges.append({
                     "source": edge.source.id,
                     "target": edge.target.id,
                     "condition": edge.condition
                 })
-        
-        print(f"Total edges: {edge_count}")
-        print("=== END DEBUG ===\n")
         
         return {
             "nodes": nodes,
@@ -223,25 +246,19 @@ class GraphService:
     def _serialize_dfg(self, dfg: DFG) -> Dict[str, Any]:
         """Convert DFG to JSON-serializable format for D3.js"""
 
-        print(f"\n=== DEBUG: DFG Serialization ===")
-        print(f"Total nodes in dfg.nodes: {len(dfg.nodes)}")
-
-        node_debug_info = [
-            f"{n.id}:{n.variable}({'DEF' if n.is_definition else 'USE'})" 
-            for n in dfg.nodes
-        ]
-        print("Nodes in dfg.nodes:", node_debug_info)
-
-        print(f"\nEdges found:")
-        for edge in dfg.edges:
-            print(f"  {edge.source.id} -> {edge.target.id} (var: {edge.variable})")
-            
-        print(f"Total edges: {len(dfg.edges)}")
-        
-        print(f"\nVariable Maps:")
-        print(f"  Defined vars: {list(dfg.definitions.keys())}")
-        print(f"  Used vars: {list(dfg.uses.keys())}")
-        print("=== END DEBUG ===\n")
+        if self.DEBUG:
+            print(f"\n=== DEBUG: DFG Serialization ===")
+            print(f"Total nodes in dfg.nodes: {len(dfg.nodes)}")
+            node_debug_info = [
+                f"{n.id}:{n.variable}({'DEF' if n.is_definition else 'USE'})" 
+                for n in dfg.nodes
+            ]
+            print("Nodes in dfg.nodes:", node_debug_info)
+            for edge in dfg.edges:
+                print(f"  {edge.source.id} -> {edge.target.id} (var: {edge.variable})")
+            print(f"  Defined vars: {list(dfg.definitions.keys())}")
+            print(f"  Used vars: {list(dfg.uses.keys())}")
+            print("=== END DEBUG ===\n")
         
         nodes = []
         edges = []

@@ -22,6 +22,7 @@ class ASTNode:
     id: Optional[int] = None
     children: List["ASTNode"] = field(default_factory=list)
     source_span: Optional[Tuple[int, int]] = None
+    start_line: int = 0
 
     symbol: Optional[str] = None
     role: Optional[str] = None
@@ -91,6 +92,7 @@ class ASTBuilder:
             id=self._id_counter,
             type=ts_node.type,
             source_span=(start, end),
+            start_line=ts_node.start_point[0] + 1,
         )
 
         self._id_counter += 1

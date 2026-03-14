@@ -1,0 +1,87 @@
+--- V8 Training (cached data + attention-cls) ---
+--- Starting V8 Training ---
+Loaded cache: Train=2059, Val=385, Types=['None', 'Operator Error', 'Logic Error']
+Device: cpu
+Ep 1/200 [Tr] L=4.260 Cls=71.0% Loc=44.7% Pat=19.6% n=2059 err=0
+         [Va] Cls=80.5% Loc=43.1% Pat=23.1% E2E=9.1% (n=385)
+         ** Best E2E=9.1% � saved **
+Ep 2/200 [Tr] L=3.669 Cls=74.9% Loc=49.4% Pat=25.6% n=2059 err=0
+         [Va] Cls=78.4% Loc=55.3% Pat=25.8% E2E=15.1% (n=385)
+         ** Best E2E=15.1% � saved **
+Ep 3/200 [Tr] L=3.499 Cls=76.3% Loc=52.1% Pat=27.0% n=2059 err=0
+         [Va] Cls=78.4% Loc=47.8% Pat=22.8% E2E=12.5% (n=385)
+Ep 4/200 [Tr] L=3.405 Cls=76.3% Loc=54.2% Pat=29.0% n=2059 err=0
+         [Va] Cls=78.4% Loc=46.4% Pat=24.4% E2E=10.4% (n=385)
+Ep 5/200 [Tr] L=3.346 Cls=76.0% Loc=52.8% Pat=30.5% n=2059 err=0
+         [Va] Cls=81.8% Loc=48.9% Pat=25.6% E2E=14.3% (n=385)
+Ep 6/200 [Tr] L=3.280 Cls=75.7% Loc=52.9% Pat=32.1% n=2059 err=0
+         [Va] Cls=84.9% Loc=45.3% Pat=31.1% E2E=10.1% (n=385)
+Ep 7/200 [Tr] L=3.214 Cls=77.0% Loc=53.4% Pat=34.1% n=2059 err=0
+         [Va] Cls=78.7% Loc=54.7% Pat=25.6% E2E=13.8% (n=385)
+Ep 8/200 [Tr] L=3.169 Cls=77.2% Loc=54.9% Pat=34.5% n=2059 err=0
+         [Va] Cls=84.9% Loc=46.9% Pat=25.6% E2E=11.9% (n=385)
+Ep 9/200 [Tr] L=3.129 Cls=77.0% Loc=54.0% Pat=35.7% n=2059 err=0
+         [Va] Cls=78.7% Loc=48.6% Pat=27.2% E2E=13.2% (n=385)
+Ep 10/200 [Tr] L=3.079 Cls=77.2% Loc=54.6% Pat=35.2% n=2059 err=0
+         [Va] Cls=81.3% Loc=52.8% Pat=30.0% E2E=16.4% (n=385)
+         ** Best E2E=16.4% � saved **
+Ep 11/200 [Tr] L=3.054 Cls=76.7% Loc=56.0% Pat=36.0% n=2059 err=0
+         [Va] Cls=74.8% Loc=54.7% Pat=24.2% E2E=14.8% (n=385)
+Ep 12/200 [Tr] L=3.018 Cls=77.2% Loc=56.0% Pat=37.7% n=2059 err=0
+         [Va] Cls=80.8% Loc=55.3% Pat=34.2% E2E=21.0% (n=385)
+         ** Best E2E=21.0% � saved **
+Ep 13/200 [Tr] L=2.953 Cls=78.0% Loc=55.5% Pat=39.2% n=2059 err=0
+         [Va] Cls=80.8% Loc=61.7% Pat=30.6% E2E=19.7% (n=385)
+Ep 14/200 [Tr] L=2.930 Cls=77.8% Loc=55.7% Pat=39.3% n=2059 err=0
+         [Va] Cls=84.9% Loc=57.8% Pat=33.1% E2E=18.7% (n=385)
+Ep 15/200 [Tr] L=2.878 Cls=77.8% Loc=56.8% Pat=39.5% n=2059 err=0
+         [Va] Cls=81.0% Loc=60.3% Pat=20.0% E2E=13.2% (n=385)
+Ep 16/200 [Tr] L=2.870 Cls=78.2% Loc=57.1% Pat=40.5% n=2059 err=0
+         [Va] Cls=84.7% Loc=53.3% Pat=27.2% E2E=11.2% (n=385)
+Ep 17/200 [Tr] L=2.824 Cls=77.9% Loc=57.8% Pat=42.6% n=2059 err=0
+         [Va] Cls=76.1% Loc=53.1% Pat=23.6% E2E=11.7% (n=385)
+Ep 18/200 [Tr] L=2.822 Cls=78.0% Loc=57.1% Pat=42.0% n=2059 err=0
+         [Va] Cls=74.8% Loc=61.4% Pat=30.3% E2E=18.2% (n=385)
+Ep 19/200 [Tr] L=2.799 Cls=77.8% Loc=57.1% Pat=41.1% n=2059 err=0
+         [Va] Cls=80.8% Loc=61.1% Pat=23.3% E2E=13.2% (n=385)
+Ep 20/200 [Tr] L=2.757 Cls=79.1% Loc=57.0% Pat=43.9% n=2059 err=0
+         [Va] Cls=80.5% Loc=52.8% Pat=18.1% E2E=10.4% (n=385)
+  Checkpoint saved.
+Ep 21/200 [Tr] L=2.767 Cls=77.3% Loc=56.7% Pat=43.6% n=2059 err=0
+         [Va] Cls=74.5% Loc=59.7% Pat=28.1% E2E=20.0% (n=385)
+Ep 22/200 [Tr] L=2.712 Cls=78.3% Loc=57.7% Pat=45.2% n=2059 err=0
+         [Va] Cls=74.5% Loc=58.1% Pat=25.3% E2E=12.5% (n=385)
+Ep 23/200 [Tr] L=2.718 Cls=77.7% Loc=57.1% Pat=45.8% n=2059 err=0
+         [Va] Cls=74.5% Loc=58.6% Pat=22.8% E2E=13.2% (n=385)
+Ep 24/200 [Tr] L=2.656 Cls=78.8% Loc=58.0% Pat=45.8% n=2059 err=0
+         [Va] Cls=77.4% Loc=60.3% Pat=27.2% E2E=17.9% (n=385)
+Ep 25/200 [Tr] L=2.605 Cls=78.8% Loc=58.1% Pat=47.1% n=2059 err=0
+         [Va] Cls=80.8% Loc=56.1% Pat=33.3% E2E=20.0% (n=385)
+Ep 26/200 [Tr] L=2.616 Cls=79.0% Loc=59.2% Pat=45.1% n=2059 err=0
+         [Va] Cls=77.4% Loc=61.7% Pat=31.7% E2E=20.3% (n=385)
+Ep 27/200 [Tr] L=2.609 Cls=78.7% Loc=59.3% Pat=45.4% n=2059 err=0
+         [Va] Cls=80.8% Loc=62.8% Pat=20.0% E2E=10.1% (n=385)
+Ep 28/200 [Tr] L=2.594 Cls=79.5% Loc=58.6% Pat=47.7% n=2059 err=0
+         [Va] Cls=80.8% Loc=63.6% Pat=19.4% E2E=10.9% (n=385)
+Ep 29/200 [Tr] L=2.601 Cls=78.0% Loc=59.2% Pat=47.4% n=2059 err=0
+         [Va] Cls=74.5% Loc=57.2% Pat=28.9% E2E=17.9% (n=385)
+Ep 30/200 [Tr] L=2.567 Cls=79.5% Loc=58.6% Pat=47.0% n=2059 err=0
+         [Va] Cls=80.8% Loc=61.4% Pat=24.4% E2E=13.8% (n=385)
+Ep 31/200 [Tr] L=2.567 Cls=78.3% Loc=60.3% Pat=47.9% n=2059 err=0
+         [Va] Cls=80.8% Loc=65.6% Pat=24.7% E2E=16.4% (n=385)
+Ep 32/200 [Tr] L=2.559 Cls=78.7% Loc=60.0% Pat=47.9% n=2059 err=0
+         [Va] Cls=80.8% Loc=63.3% Pat=25.8% E2E=16.1% (n=385)
+Ep 33/200 [Tr] L=2.538 Cls=79.1% Loc=60.2% Pat=47.9% n=2059 err=0
+         [Va] Cls=80.8% Loc=63.6% Pat=30.0% E2E=20.0% (n=385)
+Ep 34/200 [Tr] L=2.555 Cls=78.9% Loc=58.5% Pat=49.0% n=2059 err=0
+         [Va] Cls=74.5% Loc=60.0% Pat=20.0% E2E=11.9% (n=385)
+Ep 35/200 [Tr] L=2.510 Cls=79.4% Loc=58.3% Pat=50.5% n=2059 err=0
+         [Va] Cls=77.4% Loc=65.0% Pat=29.7% E2E=20.0% (n=385)
+Ep 36/200 [Tr] L=2.494 Cls=79.2% Loc=59.8% Pat=49.2% n=2059 err=0
+         [Va] Cls=80.8% Loc=62.5% Pat=23.1% E2E=12.2% (n=385)
+Ep 37/200 [Tr] L=2.479 Cls=79.5% Loc=60.5% Pat=50.1% n=2059 err=0
+         [Va] Cls=80.8% Loc=63.3% Pat=26.4% E2E=16.6% (n=385)
+Ep 38/200 [Tr] L=2.513 Cls=79.1% Loc=59.6% Pat=48.2% n=2059 err=0
+         [Va] Cls=80.8% Loc=66.1% Pat=23.1% E2E=14.3% (n=385)
+Ep 39/200 [Tr] L=2.492 Cls=79.1% Loc=60.6% Pat=48.6% n=2059 err=0
+         [Va] Cls=79.5% Loc=62.8% Pat=23.9% E2E=14.8% (n=385)
