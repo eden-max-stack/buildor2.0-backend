@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from datetime import date, datetime
 from app.infrastructure.database import get_db
 
-router = APIRouter(prefix="/profile", tags=["User Profile"])
+router = APIRouter(prefix="/profiles", tags=["User Profile"])
 
 
 # ============================================

@@ -13,6 +13,7 @@ from app.domains.professor_analytics.router import router as analytics_router
 from app.domains.code_analysis.router import router as analysis_router
 from app.domains.class_questions.router import router as class_questions_router
 from app.domains.user_profile.router import router as user_profile_router
+from app.domains.profiles.router import router as profile_router
 
 app = FastAPI(title="Buildor Backend")
 
@@ -70,4 +71,5 @@ app.include_router(leaderboard_router)
 app.include_router(analytics_router)
 app.include_router(analysis_router)
 app.include_router(class_questions_router)
-app.include_router(user_profile_router)
+# app.include_router(user_profile_router)
+app.include_router(profile_router)
