@@ -13,6 +13,7 @@ class StudentProfileUpdate(BaseModel):
     degree: Optional[str] = None
     expected_grad_year: Optional[int] = None
     gpa: Optional[float] = None
+    bio: Optional[str] = None
     portfolio_md: Optional[str] = None
     github_url: Optional[str] = None # Or use HttpUrl if you want strict URL validation
 

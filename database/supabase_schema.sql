@@ -132,6 +132,21 @@ CREATE TABLE quiz_questions (
     PRIMARY KEY (quiz_id, question_id)
 );
 
+-- 1. Create the Phases table
+CREATE TABLE public.class_phases (
+  phase_id UUID NOT NULL DEFAULT gen_random_uuid(),
+  class_id UUID NOT NULL REFERENCES classes(class_id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  order_index INTEGER NOT NULL,
+  PRIMARY KEY (phase_id)
+);
+
+-- 2. Alter your Materials table to point to the Phase instead of the Class directly
+ALTER TABLE public.materials 
+  DROP COLUMN class_id, -- Optional: You can keep this for easier querying, but it's redundant
+  ADD COLUMN phase_id UUID NOT NULL REFERENCES class_phases(phase_id) ON DELETE CASCADE;
+  
 -- ==============================================================================
 -- 4. SUBMISSIONS & TRACKING
 -- ==============================================================================
