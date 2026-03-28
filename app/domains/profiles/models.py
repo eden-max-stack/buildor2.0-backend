@@ -17,6 +17,10 @@ class StudentProfileUpdate(BaseModel):
     portfolio_md: Optional[str] = None
     github_url: Optional[str] = None # Or use HttpUrl if you want strict URL validation
 
+class TrainerProfileUpdate(BaseModel):
+    title: Optional[str] = None
+    workplace: Optional[str] = None
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verifies the JWT token with Supabase and returns the user object."""
     token = credentials.credentials

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.domains.profiles.models import StudentProfileUpdate, get_current_user
+from app.domains.profiles.models import StudentProfileUpdate, TrainerProfileUpdate, get_current_user
 from app.infrastructure.supabase_client import supabase
 
 router = APIRouter(prefix="/api/profile", tags=["Profiles"])
@@ -89,6 +89,67 @@ async def get_user_profile(current_user = Depends(get_current_user)):
                 "url": profile_data.get("github_url")
             })
 
+        return payload
+
+    except Exception as e:
+        print(f"Error fetching profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching profile data"
+        )
+    
+
+@router.put("/trainer")
+async def update_trainer_profile(
+    profile_data: TrainerProfileUpdate,
+    current_user = Depends(get_current_user)
+):
+    user_id = current_user.id
+
+    # Convert Pydantic model to a dictionary, omitting any values the frontend didn't send
+    update_payload = profile_data.model_dump(exclude_unset=True)
+
+    try:
+        # Update the row in Postgres where user_id matches the authenticated user
+        response = supabase.table("trainer_profiles") \
+            .update(update_payload) \
+            .eq("user_id", user_id) \
+            .execute()
+
+        return {"message": "Trainer profile updated successfully!", "data": response.data}
+
+    except Exception as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error saving profile"
+        )
+
+@router.get("/trainer")
+async def get_trainer_profile(current_user = Depends(get_current_user)):
+    user_id = current_user.id
+
+    try:
+        # 1. Fetch core user data (Name, Email, etc.)
+        user_response = supabase.table("users").select("*").eq("user_id", user_id).execute()
+        user_data = user_response.data[0] if user_response.data else {}
+
+        # 2. Fetch trainer profile data (title, workplace)
+        profile_response = supabase.table("trainer_profiles").select("*").eq("user_id", user_id).execute()
+        profile_data = profile_response.data[0] if profile_response.data else {}
+
+        # 3. Transform Database variables into Frontend Props   
+        full_name = user_data.get("full_name", "Trainer")
+        email = user_data.get("email", "")
+        # Fallback: create a username from their email if you don't have a username column
+        username = email.split("@")[0] if email else "user" 
+
+        # 4. Construct the exact JSON shape Next.js expects
+        payload = {
+            "title": profile_data.get("title", "Trainer"),
+            "workplace": profile_data.get("workplace", "Buildor"),
+        }
+        
         return payload
 
     except Exception as e:
