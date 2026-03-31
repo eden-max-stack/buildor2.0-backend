@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 from typing import List, Optional, Any
 
@@ -52,3 +54,46 @@ class ClassResponse(BaseModel):
     class_id: str
     phases_count: int
     students_count: int
+
+# --- Pydantic Models for the new routes ---
+class MaterialUpdatePayload(BaseModel):
+    title: Optional[str] = None
+    content_url: Optional[str] = None
+    order_index: Optional[int] = None
+
+
+class PhaseUpdatePayload(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    order_index: Optional[int] = None
+
+class MaterialAddPayload(BaseModel):
+    type: str
+    title: str
+    content_url: Optional[str] = ""
+    order_index: int
+
+class ClassUpdatePayload(BaseModel):
+    title: str
+    description: Optional[str] = ""
+
+class QuestionUpdatePayload(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    difficulty: Optional[str] = "Medium"
+    optimal_solution: Optional[str] = ""
+    constraints: Optional[str] = ""
+    testCases: Optional[List[TestCaseCreate]] = []
+    options: Optional[List[McqOptionCreate]] = []
+    type: str
+    points: int
+
+class QuizQuestionsUpdatePayload(BaseModel):
+    question_ids: list[str]
+
+class QuizCreatePayload(BaseModel):
+    title: str
+
+class QuizQuestionAddPayload(BaseModel):
+    type: str # "MCQ" or "DSA"
+    title: str

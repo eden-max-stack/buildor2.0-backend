@@ -2,7 +2,7 @@ import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.domains.profiles.models import get_current_user # Adjust import path
-from app.domains.classes.models import ClassCreatePayload, ClassResponse # Adjust import path
+from app.domains.classes.models import ClassCreatePayload, ClassResponse, ClassUpdatePayload, MaterialAddPayload, MaterialUpdatePayload, PhaseUpdatePayload, QuestionUpdatePayload, QuizCreatePayload, QuizQuestionAddPayload, QuizQuestionsUpdatePayload # Adjust import path
 from app.infrastructure.supabase_client import supabase
 
 router = APIRouter(prefix="/api/classes", tags=["Classes"])
@@ -192,4 +192,349 @@ async def get_all_classes(current_user = Depends(get_current_user)) -> List[Clas
             detail="Error fetching classes data"
         )
         
+@router.get("/browse")
+async def browse_all_classes(current_user = Depends(get_current_user)) -> List[ClassResponse]:
+    try:
+        # Fetch ALL classes from the table, no .eq() filter needed
+        res = supabase.table("classes").select("*").execute()
 
+        if not res.data:
+            # For a browse route, returning an empty list is often better than a 404
+            return []
+
+        classes_data = []
+        for cl in res.data:
+            # Note: We can include the trainer's name if you link the 'profiles' table later
+            classes_data.append({
+                "title": cl.get("title", "Unnamed Class"),
+                "description": cl.get("description", ""),
+                "org_id": cl.get("org_id"),
+                "created_at": cl.get("created_at"),
+                "trainer_id": cl.get("trainer_id"),
+                "class_id": cl.get("class_id"),
+                # You might want to calculate these dynamically in the future
+                "phases_count": 0, 
+                "students_count": 0,
+            })
+            
+        return classes_data
+
+    except Exception as e:
+        print(f"Error browsing classes: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error fetching the class catalog"
+        )
+
+# --- 1. Fetch the Entire Class Tree for the Editor ---
+@router.get("/{class_id}/editor")
+async def get_class_for_editor(class_id: str, current_user = Depends(get_current_user)):
+    try:
+        # We extend the nested syntax to include test_cases and mcq_options under questions
+        res = supabase.table("classes").select("""
+            *,
+            class_phases (
+                *, 
+                materials (
+                    *, 
+                    questions (
+                        *, 
+                        test_cases(*), 
+                        mcq_options(*)
+                    )
+                )
+            ),
+            quizzes (
+                *, 
+                quiz_questions (
+                    *, 
+                    questions (
+                        *, 
+                        test_cases(*), 
+                        mcq_options(*)
+                    )
+                )
+            )
+        """).eq("class_id", class_id).eq("trainer_id", current_user.id).execute()
+
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Class not found or unauthorized")
+
+        class_data = res.data[0]
+        
+        # Sort phases and materials by order_index so they appear correctly in the UI
+        if "class_phases" in class_data:
+            class_data["class_phases"].sort(key=lambda x: x.get("order_index", 0))
+            for phase in class_data["class_phases"]:
+                if "materials" in phase:
+                    phase["materials"].sort(key=lambda x: x.get("order_index", 0))
+
+        return class_data
+
+    except Exception as e:
+        print(f"Error fetching class editor data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load class editor")
+
+# --- 2. Update a Single Material (Fast & Lightweight) ---
+@router.put("/materials/{material_id}")
+async def update_material(material_id: str, payload: MaterialUpdatePayload, current_user = Depends(get_current_user)):
+    try:
+        # Update only the fields that were provided
+        update_data = payload.model_dump(exclude_unset=True)
+        res = supabase.table("materials").update(update_data).eq("material_id", material_id).execute()
+        return {"message": "Material updated", "data": res.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to update material")
+
+
+# 2. The PUT Route
+@router.put("/phases/{phase_id}")
+async def update_phase(
+    phase_id: str, 
+    payload: PhaseUpdatePayload, 
+    current_user = Depends(get_current_user)
+):
+    try:
+        # exclude_unset=True ensures we only update fields the frontend actually sent
+        update_data = payload.model_dump(exclude_unset=True)
+        
+        if not update_data:
+            return {"message": "Nothing to update"}
+
+        res = supabase.table("class_phases") \
+            .update(update_data) \
+            .eq("phase_id", phase_id) \
+            .execute()
+        
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Phase not found")
+            
+        return {"message": "Phase updated successfully!", "phase": res.data[0]}
+
+    except Exception as e:
+        print(f"Error updating phase: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update phase")
+        
+
+@router.post("/phases/{phase_id}/materials")
+async def add_material_to_phase(
+    phase_id: str, 
+    payload: MaterialAddPayload, 
+    current_user = Depends(get_current_user)
+):
+    try:
+        question_id = None
+        
+        # If the material is a question, create a stub in the questions table first
+        if payload.type == "QUESTION":
+            q_res = supabase.table("questions").insert({
+                "trainer_id": current_user.id,
+                "type": "MCQ", # Default stub, user will edit it later via the modal
+                "title": payload.title,
+                "difficulty": "Medium"
+            }).execute()
+            question_id = q_res.data[0]["question_id"]
+
+        # Insert the material
+        mat_res = supabase.table("materials").insert({
+            "phase_id": phase_id,
+            "type": payload.type, 
+            "title": payload.title,
+            "content_url": payload.content_url,
+            "order_index": payload.order_index,
+            "question_id": question_id
+        }).execute()
+
+        return mat_res.data[0]
+
+    except Exception as e:
+        print(f"Error adding material: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add material")
+    
+@router.put("/questions/{question_id}")
+async def update_question(
+    question_id: str, 
+    payload: QuestionUpdatePayload, 
+    current_user = Depends(get_current_user)
+):
+    try:
+        # 1. Update the core question details
+        db_question_type = "MCQ" if "MCQ" in payload.type else "DSA"
+        
+        supabase.table("questions").update({
+            "title": payload.title,
+            "description": payload.description,
+            "difficulty": payload.difficulty,
+            "optimal_solution": payload.optimal_solution,
+            "constraints": payload.constraints,
+            "type": db_question_type
+        }).eq("question_id", question_id).execute()
+
+        if payload.points is not None:
+            # Update points in quiz_questions if this question is linked to any quizzes
+            supabase.table("quiz_questions").update({
+                "points": payload.points
+            }).eq("question_id", question_id).execute()
+
+        # 2. Overwrite MCQ Options
+        if db_question_type == "MCQ" and payload.options:
+            # Wipe existing options
+            supabase.table("mcq_options").delete().eq("question_id", question_id).execute()
+            # Insert new options
+            opt_data = [
+                {"question_id": question_id, "option_text": o.text, "is_correct": o.isCorrect} 
+                for o in payload.options
+            ]
+            supabase.table("mcq_options").insert(opt_data).execute()
+
+        # 3. Overwrite DSA Test Cases
+        if db_question_type == "DSA" and payload.testCases:
+            # Wipe existing test cases
+            supabase.table("test_cases").delete().eq("question_id", question_id).execute()
+            tc_data = []
+            for tc in payload.testCases:
+                try:
+                    parsed_input = json.loads(tc.input)
+                    parsed_output = json.loads(tc.expectedOutput)
+                except:
+                    parsed_input = {"raw": tc.input}
+                    parsed_output = {"raw": tc.expectedOutput}
+                
+                tc_data.append({
+                    "question_id": question_id,
+                    "input": parsed_input,
+                    "expected_output": parsed_output,
+                    "is_sample": tc.isSample
+                })
+            supabase.table("test_cases").insert(tc_data).execute()
+
+        return {"message": "Question updated successfully"}
+
+    except Exception as e:
+        print(f"Error updating question: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update question")
+    
+@router.put("/{class_id}")
+async def update_class_settings(
+    class_id: str, 
+    payload: ClassUpdatePayload, 
+    current_user = Depends(get_current_user)
+):
+    try:
+        # We verify trainer_id to ensure only the owner can edit settings
+        res = supabase.table("classes").update({
+            "title": payload.title,
+            "description": payload.description
+        }).eq("class_id", class_id).eq("trainer_id", current_user.id).execute()
+        
+        if not res.data:
+             raise HTTPException(status_code=403, detail="Not authorized to edit this class")
+
+        return {"message": "Class settings updated"}
+    except Exception as e:
+        print(f"Error updating class settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update class settings")
+
+
+# Assuming QuestionUpdatePayload is already defined from the previous step
+@router.post("/quizzes/{quiz_id}/questions")
+async def add_full_question_to_quiz(
+    quiz_id: str, 
+    payload: QuestionUpdatePayload, 
+    current_user = Depends(get_current_user)
+):
+    try:
+        db_question_type = "MCQ" if "MCQ" in payload.type else "DSA"
+
+        # 1. Insert the Question
+        q_res = supabase.table("questions").insert({
+            "trainer_id": current_user.id,
+            "type": db_question_type,
+            "title": payload.title,
+            "description": payload.description,
+            "difficulty": payload.difficulty,
+            "optimal_solution": payload.optimal_solution,
+            "constraints": payload.constraints
+        }).execute()
+        
+        question_data = q_res.data[0]
+        question_id = question_data["question_id"]
+
+        # 2. Insert Options if MCQ
+        if db_question_type == "MCQ" and payload.options:
+            opt_data = [
+                {"question_id": question_id, "option_text": o.text, "is_correct": o.isCorrect} 
+                for o in payload.options
+            ]
+            supabase.table("mcq_options").insert(opt_data).execute()
+            question_data["mcq_options"] = opt_data # Attach to response
+
+        # 3. Insert Test Cases if DSA
+        if db_question_type == "DSA" and payload.testCases:
+            tc_data = []
+            for tc in payload.testCases:
+                try:
+                    parsed_input = json.loads(tc.input)
+                    parsed_output = json.loads(tc.expectedOutput)
+                except:
+                    parsed_input = {"raw": tc.input}
+                    parsed_output = {"raw": tc.expectedOutput}
+                
+                tc_data.append({
+                    "question_id": question_id,
+                    "input": parsed_input,
+                    "expected_output": parsed_output,
+                    "is_sample": tc.isSample
+                })
+            supabase.table("test_cases").insert(tc_data).execute()
+            question_data["test_cases"] = tc_data # Attach to response
+
+        # 4. Link the new question directly to the Quiz
+        supabase.table("quiz_questions").insert({
+            "quiz_id": quiz_id,
+            "question_id": question_id,
+            "points": getattr(payload, 'points', 10)
+        }).execute()
+
+        # Return the newly created question so the UI can render it immediately
+        return {"message": "Question created and added to quiz", "question": question_data}
+
+    except Exception as e:
+        print(f"Error creating full quiz question: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create question for quiz")
+    
+
+@router.post("/{class_id}/quizzes")
+async def create_quiz(class_id: str, payload: QuizCreatePayload, current_user = Depends(get_current_user)):
+    try:
+        quiz_res = supabase.table("quizzes").insert({
+            "class_id": class_id,
+            "title": payload.title
+        }).execute()
+        return {"message": "Quiz created", "quiz_id": quiz_res.data[0]["quiz_id"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to create quiz")
+    
+@router.post("/quizzes/{quiz_id}/questions")
+async def add_question_to_quiz(quiz_id: str, payload: QuizQuestionAddPayload, current_user = Depends(get_current_user)):
+    try:
+        # 1. Create the new standalone question
+        q_res = supabase.table("questions").insert({
+            "trainer_id": current_user.id,
+            "type": payload.type,
+            "title": payload.title,
+            "difficulty": "Medium"
+        }).execute()
+        question_data = q_res.data[0]
+
+        # 2. Link it to the Quiz
+        supabase.table("quiz_questions").insert({
+            "quiz_id": quiz_id,
+            "question_id": question_data["question_id"],
+            "points": 10
+        }).execute()
+
+        # Return the joined data so the frontend can immediately edit it
+        return {"message": "Question added", "question": question_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to add question to quiz")
