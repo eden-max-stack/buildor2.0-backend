@@ -1,0 +1,180 @@
+\subsection{Graph Builder IR (Intermediate Representation)}
+
+The first layer transforms raw source code into structured graph-based representations that capture complementary aspects of program behavior. Three graph forms are constructed.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.48\textwidth]{vertopal_903cd82bae764ef2831eb27009f9437c/media/image1.png}
+    \caption{Layer 1: Graph IR Builder}
+    \label{fig:graph_ir}
+\end{figure}
+
+\begin{enumerate}
+    \item \textbf{Abstract Syntax Tree (AST):} The AST represents the syntactic hierarchy of the program, encoding expressions, loops, conditionals, and function calls. It enables reasoning about grammatical correctness and structural composition.
+
+    \item \textbf{Control Flow Graph (CFG):} The CFG models execution order, branching, loops, and control dependencies, allowing identification of logical fallacies such as incorrect loop bounds, misplaced branching logic, and unintended execution paths.
+
+    \item \textbf{Data Flow Graph (DFG):} The DFG captures variable definitions, usages, and dependencies, enabling reasoning about stale values, incorrect updates, and missing state transitions.
+\end{enumerate}
+
+Together, these graphs form a unified intermediate representation that captures syntax, execution semantics, and variable interactions. This multi-graph representation follows established program analysis principles where combining structural views improves semantic understanding.
+
+\subsubsection{Abstract Syntax Tree (AST) Construction}
+
+The AST construction pipeline begins by parsing Python source code using Tree-sitter, a robust parser generator that produces fine-grained syntax trees. The Tree-sitter parse tree is then transformed into our language-agnostic AST representation, which normalizes node types and assigns semantic roles to enable downstream analysis.
+
+\paragraph{Semantic Role Assignment}
+
+A key innovation in our AST design is \emph{role-based tagging}, where each AST node receives a semantic role that indicates its purpose within control structures. This role assignment is context-dependent and computed during the tree construction phase. For example:
+
+\begin{itemize}
+    \item In an \texttt{if\_statement}, child blocks are tagged as either \texttt{then\_branch} or \texttt{else\_branch} based on their position (first block is then; subsequent blocks are else).
+    \item In a \texttt{for\_statement}, children receive roles \texttt{loop\_iterator} (the variable being iterated), \texttt{loop\_iterable} (the sequence), and \texttt{loop\_body} (the loop body).
+    \item In a \texttt{try\_statement}, blocks receive roles \texttt{try\_body}, \texttt{except\_clause}, \texttt{else\_clause}, or \texttt{finally\_clause} depending on their function.
+    \item In \texttt{with\_statement}, expressions receive \texttt{context\_expr} and code blocks receive \texttt{body}.
+\end{itemize}
+
+These roles are computed bottom-up: after children are constructed, their parent type is examined to determine the appropriate role. This approach avoids hardcoding position-based semantics and makes the AST more robust to parser variations.
+
+\paragraph{Lazy Text Extraction}
+
+To reduce memory overhead, source code text is not stored directly in the AST. Instead, each node maintains a \texttt{source\_span} (byte offsets into the original source), and text is extracted on-demand via \texttt{get\_text(source\_code)}. This design reduces the AST's memory footprint while preserving the ability to retrieve node text when needed during analysis.
+
+\subsubsection{Control Flow Graph (CFG) Construction}
+
+The CFG captures the order and branching of execution, enabling analysis of control dependencies and detection of control flow errors such as infinite loops or unreachable code.
+
+\paragraph{Hierarchical Control Structure Handling}
+
+The CFG builder processes different control structures through specialized methods:
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \begin{tabular}{|l|l|p{5cm}|}
+    \hline
+    \textbf{Structure} & \textbf{Key Nodes} & \textbf{Semantics} \\
+    \hline
+    \texttt{if/else} & condition, then\_branch, else\_branch, merge & Condition branches to then or else (or skip if no else), both merge \\
+    \hline
+    \texttt{while} & condition, loop\_body, loop\_exit & Condition controls entry; body loops back to condition \\
+    \hline
+    \texttt{for} & iterator, loop\_body, loop\_exit & Iterator node acts as condition; body loops back \\
+    \hline
+    \texttt{try/except} & try\_entry, try\_body, except\_catch (per handler), finally, merge & Exceptions branch to handlers; all paths converge; finally always executes \\
+    \hline
+    \texttt{with} & context\_enter, body, context\_exit & Context manager setup, body, guaranteed cleanup \\
+    \hline
+    \texttt{assert} & assert\_check, assert\_fail & Splits into success (implicit) and failure paths \\
+    \hline
+    \end{tabular}
+    \caption{CFG Construction Semantics for Python Control Structures}
+    \label{tab:cfg_semantics}
+\end{table}
+
+\paragraph{Entry and Exit Node Management}
+
+Every CFG is anchored by two synthetic nodes: an \texttt{ENTRY} node (representing function entry) and an \texttt{EXIT} node (representing all function exits including returns). During construction:
+
+\begin{enumerate}
+    \item Entry connects to the first statement in the function body.
+    \item All terminal statements (explicit returns, or the last statement if no return) connect to Exit.
+    \item Return statements short-circuit the control flow, immediately connecting to Exit rather than to subsequent statements.
+\end{enumerate}
+
+\paragraph{Loop Back-edges and Merge Points}
+
+Loop structures create back-edges that reconnect to the loop condition or entry point:
+
+\begin{itemize}
+    \item \textbf{While loops}: The loop body reconnects to the condition node, forming a cycle. The condition has two outgoing edges: true (to body) and false (to loop\_exit).
+    \item \textbf{For loops}: The iterator node acts as both entry and loop condition. The list structure is preserved implicitly; the body loops back to the iterator node.
+    \item \textbf{Conditional merge}: If/else statements create a merge node where both branches reconverge unless they terminate with returns.
+\end{itemize}
+
+\subsubsection{Data Flow Graph (DFG) Construction}
+
+The DFG tracks variable definitions and uses, enabling detection of data flow errors such as use-before-definition, stale updates, or missing state transitions.
+
+\paragraph{Two-Phase Definition and Use Extraction}
+
+The DFG is built in two phases:
+
+\begin{enumerate}
+    \item \textbf{Phase 1 (Extraction)}: AST and CFG are traversed to extract all variable definitions and uses. Each definition or use is represented as a DFG node with metadata: variable name, associated AST and CFG nodes, and classification as definition or use.
+    
+    \item \textbf{Phase 2 (Connection)}: Dataflow analysis computes reaching definitions at each CFG node using the standard iterative fixed-point algorithm. Uses are then connected to their reaching definitions via DFG edges.
+\end{enumerate}
+
+\paragraph{Definition Extraction}
+
+Variable definitions are identified in the following contexts:
+
+\begin{itemize}
+    \item \textbf{Assignments}: Left-hand side identifiers in \texttt{assignment} nodes, including tuple unpacking (e.g., \texttt{x, y = 1, 2}).
+    \item \textbf{For-loop iterators}: The loop variable in \texttt{for x in ...} statements.
+    \item \textbf{Exception handlers}: The exception alias in \texttt{except ValueError as e}, where \texttt{e} is a definition.
+    \item \textbf{Function parameters}: All function parameters are treated as definitions at the \texttt{ENTRY} node with reaching scope over the entire function.
+\end{itemize}
+
+For complex unpacking patterns (e.g., \texttt{for x, (y, z) in items}), definitions are extracted recursively.
+
+\paragraph{Use Extraction and Sink Identification}
+
+Variable uses are identified by scanning all identifiers in an AST node, excluding:
+
+\begin{itemize}
+    \item Left-hand sides of assignments (these are definitions, not uses).
+    \item Function name identifiers in function calls.
+\end{itemize}
+
+Uses are further classified as \emph{sinks} if they feed into side-effecting operations such as \texttt{print()} or I/O functions. This classification helps identify which variables are directly observable externally.
+
+\paragraph{Reaching Definitions Analysis}
+
+After extraction, the DFG builder computes reaching definitions using a classic iterative dataflow analysis algorithm:
+
+\begin{enumerate}
+    \item \textbf{Initialization}: At the function entry (\texttt{ENTRY}), all parameters have reaching definitions.
+    
+    \item \textbf{Propagation}: For each CFG node, the reaching definitions IN set is the union of OUT sets from all predecessors. The OUT set is computed as:
+    \[
+    \text{OUT}(n) = (\text{IN}(n) - \text{KILL}(n)) \cup \text{GEN}(n)
+    \]
+    where KILL is the set of definitions killed (overwritten) at node $n$, and GEN is the set of new definitions created at $n$.
+    
+    \item \textbf{Fixed-point}: Propagation continues until a fixed point is reached (reaching definitions stabilize).
+\end{enumerate}
+
+\paragraph{Variable Dependencies and Tracking}
+
+The DFG explicitly models control-dependent and data-dependent paths. For instance:
+
+\begin{itemize}
+    \item If a variable \texttt{x} is used in an if condition, then \texttt{x} is a \emph{critical dependency}: its value determines which branch executes.
+    \item If a variable \texttt{y} is defined in one branch and used after the if/else merge, the DFG records that \texttt{y} has multiple reaching definitions (one per branch), highlighting potential state inconsistency bugs.
+\end{itemize}
+
+\subsubsection{Graph Integration and Semantic Preservation}
+
+The three graphs are tightly integrated via shared AST nodes and CFG nodes:
+
+\begin{itemize}
+    \item Each CFG node maintains a reference to its corresponding AST node(s), preserving syntax-level detail.
+    \item Each DFG node links to both its AST node (source text) and CFG node (execution context).
+    \item Reaching definitions are computed over CFG nodes, ensuring they respect execution order and branching.
+\end{itemize}
+
+This integration enables the downstream hint generation engine to reason across syntactic, control-flow, and data-flow dimensions simultaneously. For example, a hint about a stale variable (data flow error) can reference the exact source code location (from AST), explain which computation path led to the issue (using CFG), and trace the variable's history of definitions and updates (using DFG).
+
+\paragraph{Memory and Scalability Optimizations}
+
+Several design choices optimize for scalability on large code bases:
+
+\begin{itemize}
+    \item Lazy text extraction avoids replicating source code in AST nodes.
+    \item Reaching definitions are stored by CFG node ID rather than node objects, reducing memory indirection.
+    \item Graph construction is single-pass: AST is built, then CFG is built over the AST, then DFG is built over both, avoiding redundant traversals.
+\end{itemize}
+
+This three-layer IR design balances expressiveness (capturing syntax, control flow, and data flow) with efficiency (minimal memory overhead, single-pass construction).

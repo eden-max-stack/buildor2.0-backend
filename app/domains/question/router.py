@@ -14,35 +14,36 @@ router = APIRouter(prefix="/questions", tags=["Questions"])
 # ============================================
 
 class TestCaseResponse(BaseModel):
-    id: str
+    tc_id: str
     input: Dict[str, Any]
     expected_output: Any
     is_sample: bool
-    is_hidden: bool
-    difficulty: Optional[str]
-    order_index: int
+
+class McqOptionResponse(BaseModel):
+    option_id: str
+    option_text: str
+    is_correct: bool
 
 class QuestionDetailResponse(BaseModel):
-    id: str
+    question_id: str
+    trainer_id: str
+    type: str
     title: str
     description: str
-    difficulty: str
+    difficulty: Optional[str]
     tags: List[str]
-    constraints: List[str]
-    acceptance_rate: Optional[float]
+    constraints: Optional[str]
     total_submissions: int
     successful_submissions: int
     optimal_solution: Optional[str]
-    time_complexity: Optional[str]
-    space_complexity: Optional[str]
     test_cases: List[TestCaseResponse]
+    mcq_options: List[McqOptionResponse]
 
 class QuestionListItem(BaseModel):
-    id: str
+    question_id: str
     title: str
-    difficulty: str
+    difficulty: Optional[str]
     tags: List[str]
-    acceptance_rate: Optional[float]
 
 # ============================================
 # ENDPOINTS
@@ -74,9 +75,8 @@ def get_question_details(
             if idx <= 0:
                 raise HTTPException(status_code=422, detail="question_id must be a UUID or a positive integer")
             resolve_query = text("""
-                SELECT id
+                SELECT question_id
                 FROM public.questions
-                WHERE is_active = true
                 ORDER BY created_at ASC
                 LIMIT 1 OFFSET :offset
             """)
@@ -90,20 +90,19 @@ def get_question_details(
     # Fetch question details
     query = text("""
         SELECT 
-            id,
+            question_id,
+            trainer_id,
+            type,
             title,
             description,
             difficulty,
             tags,
             constraints,
-            acceptance_rate,
             total_submissions,
             successful_submissions,
-            optimal_solution,
-            time_complexity,
-            space_complexity
+            optimal_solution
         FROM public.questions
-        WHERE id = :question_id AND is_active = true
+        WHERE question_id = :question_id
     """)
     
     result = db.execute(query, {"question_id": resolved_question_id}).fetchone()
@@ -114,16 +113,13 @@ def get_question_details(
     # Fetch test cases
     test_cases_query = text("""
         SELECT 
-            id,
+            tc_id,
             input,
             expected_output,
-            is_sample,
-            is_hidden,
-            difficulty,
-            order_index
+            is_sample
         FROM public.test_cases
         WHERE question_id = :question_id
-        ORDER BY order_index ASC, created_at ASC
+        ORDER BY tc_id ASC
     """)
     
     test_cases_result = db.execute(test_cases_query, {"question_id": resolved_question_id}).fetchall()
@@ -132,29 +128,47 @@ def get_question_details(
     test_cases = []
     for tc in test_cases_result:
         test_cases.append({
-            "id": str(tc[0]),
+            "tc_id": str(tc[0]),
             "input": tc[1],
             "expected_output": tc[2],
-            "is_sample": tc[3],
-            "is_hidden": tc[4],
-            "difficulty": tc[5],
-            "order_index": tc[6]
+            "is_sample": tc[3]
+        })
+
+    # Fetch MCQ options
+    mcq_options_query = text("""
+        SELECT 
+            option_id,
+            option_text,
+            is_correct
+        FROM public.mcq_options
+        WHERE question_id = :question_id
+        ORDER BY option_id ASC
+    """)
+    
+    mcq_options_result = db.execute(mcq_options_query, {"question_id": resolved_question_id}).fetchall()
+    
+    mcq_options = []
+    for opt in mcq_options_result:
+        mcq_options.append({
+            "option_id": str(opt[0]),
+            "option_text": opt[1],
+            "is_correct": opt[2]
         })
     
     return {
-        "id": str(result[0]),
-        "title": result[1],
-        "description": result[2],
-        "difficulty": result[3],
-        "tags": result[4] or [],
-        "constraints": result[5] or [],
-        "acceptance_rate": float(result[6]) if result[6] else None,
-        "total_submissions": result[7],
-        "successful_submissions": result[8],
-        "optimal_solution": result[9],
-        "time_complexity": result[10],
-        "space_complexity": result[11],
-        "test_cases": test_cases
+        "question_id": str(result[0]),
+        "trainer_id": str(result[1]),
+        "type": result[2],
+        "title": result[3],
+        "description": result[4],
+        "difficulty": result[5],
+        "tags": result[6] or [],
+        "constraints": result[7],
+        "total_submissions": result[8],
+        "successful_submissions": result[9],
+        "optimal_solution": result[10],
+        "test_cases": test_cases,
+        "mcq_options": mcq_options
     }
 
 @router.get("/", response_model=List[QuestionListItem])
@@ -165,7 +179,7 @@ def list_questions(
     db: Session = Depends(get_db)
 ):
     """
-    List all active questions with optional filtering.
+    List all questions with optional filtering.
     """
     # Check SQLite guard
     dialect = str(getattr(getattr(engine, "url", None), "drivername", ""))
@@ -176,7 +190,7 @@ def list_questions(
         )
     
     # Build query with optional difficulty filter
-    where_clause = "WHERE is_active = true"
+    where_clause = "WHERE 1=1"
     params = {"limit": limit, "offset": offset}
     
     if difficulty:
@@ -185,11 +199,10 @@ def list_questions(
     
     query = text(f"""
         SELECT 
-            id,
+            question_id,
             title,
             difficulty,
-            tags,
-            acceptance_rate
+            tags
         FROM public.questions
         {where_clause}
         ORDER BY created_at DESC
@@ -201,11 +214,10 @@ def list_questions(
     questions = []
     for row in results:
         questions.append({
-            "id": str(row[0]),
+            "question_id": str(row[0]),
             "title": row[1],
             "difficulty": row[2],
-            "tags": row[3] or [],
-            "acceptance_rate": float(row[4]) if row[4] else None
+            "tags": row[3] or []
         })
     
     return questions

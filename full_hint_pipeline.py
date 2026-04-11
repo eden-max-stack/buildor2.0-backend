@@ -25,7 +25,7 @@ from core_engine.fuzzy_inference import fuzzy_infer, build_hint_context
 from core_engine.hint_generator import generate_hint as generate_nl_hint
 
 # --- Configuration ---
-MODEL_PATH = 'gnn_model_mbpp_best.pth'
+MODEL_PATH = 'gnn_model_mbpp_best_new.pth'
 VOCAB_PATH = 'vocab_mbpp.json'
 EMBED_DIM = 64
 MAX_VOCAB_SIZE = 500
@@ -209,7 +209,7 @@ def generate_hint_pipeline(buggy_code, correct_code=None, tests_failed_ratio=0.5
     model.eval()
     
     with torch.no_grad():
-        cls_logits, loc_logits, patch_logits = model(t_user, t_opt)
+        cls_logits, loc_logits, patch_logits, edit_logits = model(t_user, t_opt)
     
     if cls_logits.dim() == 1:
         cls_logits = cls_logits.unsqueeze(0)

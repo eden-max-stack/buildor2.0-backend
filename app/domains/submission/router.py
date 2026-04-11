@@ -13,6 +13,7 @@ import time
 import psutil
 import os
 import inspect
+from app.infrastructure.supabase_client import supabase
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
 
@@ -186,195 +187,115 @@ def compare_outputs(actual: Any, expected: Any) -> bool:
     else:
         return actual == expected
 
-# ============================================
-# ENDPOINTS
-# ============================================
 
-@router.post("/", response_model=SubmissionResponse, status_code=201)
-def submit_code(
-    submission: SubmissionCreate,
-    db: Session = Depends(get_db)
-):
+@router.post("/", status_code=201)
+def submit_code(submission: SubmissionCreate): 
     """
     Submit code for a question and execute it against test cases.
-    Returns results including pass/fail status, runtime, and memory usage.
     """
-    # Check SQLite guard
-    dialect = str(getattr(getattr(engine, "url", None), "drivername", ""))
-    if dialect.startswith("sqlite"):
-        raise HTTPException(
-            status_code=500,
-            detail="Backend is connected to SQLite, but these routes require the Supabase Postgres schema."
-        )
-    
-    # Verify question exists
-    question_query = text("""
-        SELECT id, optimal_solution FROM public.questions 
-        WHERE id = :question_id AND is_active = true
-    """)
-    question = db.execute(question_query, {"question_id": submission.question_id}).fetchone()
-    
-    if not question:
-        raise HTTPException(status_code=404, detail="Question not found")
-    
-    # Fetch test cases
-    test_cases_query = text("""
-        SELECT id, input, expected_output, is_sample, is_hidden
-        FROM public.test_cases
-        WHERE question_id = :question_id
-        ORDER BY order_index ASC
-    """)
-    test_cases = db.execute(test_cases_query, {"question_id": submission.question_id}).fetchall()
-    
-    if not test_cases:
-        raise HTTPException(status_code=400, detail="No test cases found for this question")
-    
-    # Execute code against all test cases
-    test_results = []
-    passed_count = 0
-    total_runtime = 0
-    total_memory = 0
-    overall_status = "accepted"
-    error_message = None
-    
-    for tc in test_cases:
-        tc_id, tc_input, tc_expected, tc_is_sample, tc_is_hidden = tc
+    try:
+        # 1. Verify question exists
+        q_res = supabase.table("questions").select("question_id").eq("question_id", submission.question_id).execute()
+        if not q_res.data:
+            raise HTTPException(status_code=404, detail="Question not found")
+
+        # 2. Verify user exists
+        u_res = supabase.table("users").select("user_id").eq("user_id", submission.user_id).execute()
+        if not u_res.data:
+            raise HTTPException(status_code=400, detail="Invalid user_id")
         
-        # Execute code
-        exec_result = execute_python_code(submission.code, tc_input)
+        # 3. Fetch test cases 
+        tc_res = supabase.table("test_cases").select("tc_id, input, expected_output, is_sample").eq("question_id", submission.question_id).execute()
+        test_cases = tc_res.data
         
-        if exec_result["success"]:
-            # Compare output
-            passed = compare_outputs(exec_result["output"], tc_expected)
+        if not test_cases:
+            raise HTTPException(status_code=400, detail="No test cases found for this question")
+        
+        # 4. Execute code against all test cases
+        test_results = []
+        passed_count = 0
+        total_runtime = 0
+        total_memory = 0
+        overall_status = "accepted"
+        error_message = None
+        
+        for tc in test_cases:
+            tc_id = tc["tc_id"]
+            tc_input = tc["input"] 
+            tc_expected = tc["expected_output"]
+            tc_is_sample = tc["is_sample"]
             
-            if passed:
-                passed_count += 1
+            # Execute code
+            exec_result = execute_python_code(submission.code, tc_input)
+            
+            if exec_result["success"]:
+                # Compare output
+                passed = compare_outputs(exec_result["output"], tc_expected)
+                
+                if passed:
+                    passed_count += 1
+                else:
+                    overall_status = "wrong_answer"
+                
+                test_results.append({
+                    "test_case_id": str(tc_id),
+                    "passed": passed,
+                    "input": tc_input,
+                    "expected_output": tc_expected,
+                    "actual_output": exec_result["output"],
+                    "error_message": None,
+                    "is_sample": tc_is_sample
+                })
+                
+                total_runtime += exec_result["runtime_ms"]
+                total_memory += exec_result["memory_kb"]
             else:
-                overall_status = "wrong_answer"
-            
-            test_results.append({
-                "test_case_id": str(tc_id),
-                "passed": passed,
-                "input": tc_input,
-                "expected_output": tc_expected,
-                "actual_output": exec_result["output"],
-                "error_message": None,
-                "is_sample": tc_is_sample
-            })
-            
-            total_runtime += exec_result["runtime_ms"]
-            total_memory += exec_result["memory_kb"]
-        else:
-            # Runtime error
-            overall_status = "runtime_error"
-            error_message = exec_result["error"]
-            
-            test_results.append({
-                "test_case_id": str(tc_id),
-                "passed": False,
-                "input": tc_input,
-                "expected_output": tc_expected,
-                "actual_output": None,
-                "error_message": exec_result["error"],
-                "is_sample": tc_is_sample
-            })
-            break  # Stop on first error
-    
-    # Calculate average runtime and memory
-    avg_runtime = total_runtime // len(test_results) if test_results else 0
-    avg_memory = total_memory // len(test_results) if test_results else 0
-    
-    # Insert submission into database
-    insert_query = text("""
-        INSERT INTO public.submissions (
-            question_id, user_id, code, language, status,
-            test_cases_passed, total_test_cases,
-            runtime_ms, memory_kb, error_message, submitted_at
-        )
-        VALUES (
-            :question_id, :user_id, :code, :language, :status,
-            :test_cases_passed, :total_test_cases,
-            :runtime_ms, :memory_kb, :error_message, NOW()
-        )
-        RETURNING id, submitted_at
-    """)
-    
-    result = db.execute(insert_query, {
-        "question_id": submission.question_id,
-        "user_id": submission.user_id,
-        "code": submission.code,
-        "language": submission.language,
-        "status": overall_status,
-        "test_cases_passed": passed_count,
-        "total_test_cases": len(test_cases),
-        "runtime_ms": avg_runtime,
-        "memory_kb": avg_memory,
-        "error_message": error_message
-    }).fetchone()
-    
-    db.commit()
-    
-    submission_id = str(result[0])
-    submitted_at = result[1].isoformat()
-    
-    # Update user_question_progress
-    if overall_status == "accepted":
-        # Update progress to solved
-        progress_query = text("""
-            INSERT INTO public.user_question_progress (
-                user_id, question_id, status, attempts,
-                best_runtime_ms, best_memory_kb,
-                first_attempted_at, solved_at, last_attempted_at
-            )
-            VALUES (
-                :user_id, :question_id, 'solved', 1,
-                :runtime_ms, :memory_kb,
-                NOW(), NOW(), NOW()
-            )
-            ON CONFLICT (user_id, question_id)
-            DO UPDATE SET
-                status = 'solved',
-                attempts = user_question_progress.attempts + 1,
-                best_runtime_ms = LEAST(user_question_progress.best_runtime_ms, :runtime_ms),
-                best_memory_kb = LEAST(user_question_progress.best_memory_kb, :memory_kb),
-                solved_at = COALESCE(user_question_progress.solved_at, NOW()),
-                last_attempted_at = NOW()
-        """)
-    else:
-        # Update progress to attempted
-        progress_query = text("""
-            INSERT INTO public.user_question_progress (
-                user_id, question_id, status, attempts,
-                first_attempted_at, last_attempted_at
-            )
-            VALUES (
-                :user_id, :question_id, 'attempted', 1,
-                NOW(), NOW()
-            )
-            ON CONFLICT (user_id, question_id)
-            DO UPDATE SET
-                attempts = user_question_progress.attempts + 1,
-                last_attempted_at = NOW()
-        """)
-    
-    db.execute(progress_query, {
-        "user_id": submission.user_id,
-        "question_id": submission.question_id,
-        "runtime_ms": avg_runtime,
-        "memory_kb": avg_memory
-    })
-    db.commit()
-    
-    return {
-        "id": submission_id,
-        "question_id": submission.question_id,
-        "user_id": submission.user_id,
-        "status": overall_status,
-        "test_cases_passed": passed_count,
-        "total_test_cases": len(test_cases),
-        "runtime_ms": avg_runtime,
-        "memory_kb": avg_memory,
-        "test_results": test_results,
-        "error_message": error_message,
-        "submitted_at": submitted_at
-    }
+                # Runtime error
+                overall_status = "runtime_error"
+                error_message = exec_result["error"]
+                
+                test_results.append({
+                    "test_case_id": str(tc_id),
+                    "passed": False,
+                    "input": tc_input,
+                    "expected_output": tc_expected,
+                    "actual_output": None,
+                    "error_message": exec_result["error"],
+                    "is_sample": tc_is_sample
+                })
+                break  # Stop on first error
+        # Calculate average runtime and memory
+        avg_runtime = total_runtime // len(test_results) if test_results else 0
+        avg_memory = total_memory // len(test_results) if test_results else 0
+        
+        # 5. Insert submission into database 
+        sub_res = supabase.table("submissions").insert({
+            "question_id": submission.question_id,
+            "user_id": submission.user_id,
+            "submitted_code": submission.code,
+            # THE FIX: Add .upper() so it matches your Postgres ENUM!
+            "status": overall_status.upper(), 
+            "runtime_ms": avg_runtime,
+            "memory_kb": avg_memory
+        }).execute()
+        
+        sub_data = sub_res.data[0]
+        
+        return {
+            "id": sub_data["submission_id"],
+            "question_id": submission.question_id,
+            "user_id": submission.user_id,
+            "status": overall_status,
+            "test_cases_passed": passed_count,
+            "total_test_cases": len(test_cases),
+            "runtime_ms": avg_runtime,
+            "memory_kb": avg_memory,
+            "test_results": test_results,
+            "error_message": error_message,
+            "submitted_at": sub_data["submitted_at"]
+        }
+
+    except Exception as e:
+        # This will print the EXACT Supabase error dictionary to your terminal
+        print(f"Failed to execute submission: {repr(e)}") 
+        raise HTTPException(status_code=500, detail=str(e))
