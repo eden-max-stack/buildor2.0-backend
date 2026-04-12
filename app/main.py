@@ -16,6 +16,7 @@ from app.domains.user_profile.router import router as user_profile_router
 from app.domains.profiles.router import router as profile_router
 from app.domains.classes.router import router as classes_router
 from app.domains.tasks.router import router as tasks_router
+from app.domains.goals.router import router as goals_router
 
 app = FastAPI(title="Buildor Backend")
 
@@ -77,3 +78,4 @@ app.include_router(user_profile_router)
 app.include_router(profile_router)
 app.include_router(classes_router)
 app.include_router(tasks_router)
+app.include_router(goals_router)

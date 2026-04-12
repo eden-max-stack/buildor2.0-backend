@@ -1026,6 +1026,39 @@ async def get_enrollment_status(class_id: str, current_user = Depends(get_curren
         print(f"Error checking enrollment: {e}")
         raise HTTPException(status_code=500, detail="Error checking enrollment status")
     
+@router.post("/{class_id}/enroll")
+async def enroll_in_class(class_id: str, current_user = Depends(get_current_user)):
+    """Enroll a student in a class."""
+    user_id = current_user.id
+    try:
+        # 1. Verify class exists and check the trainer
+        class_res = supabase.table("classes").select("trainer_id").eq("class_id", class_id).execute()
+        if not class_res.data:
+            raise HTTPException(status_code=404, detail="Class not found")
+        
+        # Prevent trainers from enrolling in their own classes
+        if str(class_res.data[0]["trainer_id"]) == str(user_id):
+            raise HTTPException(status_code=400, detail="You are the trainer for this class and do not need to enroll.")
+
+        # 2. Check if the user is already enrolled
+        enroll_res = supabase.table("class_enrollments").select("enrolled_at").eq("class_id", class_id).eq("user_id", user_id).execute()
+        if len(enroll_res.data) > 0:
+            return {"message": "You are already enrolled in this class.", "status": "already_enrolled"}
+
+        # 3. Insert the enrollment record
+        supabase.table("class_enrollments").insert({
+            "class_id": class_id,
+            "user_id": user_id
+        }).execute()
+
+        return {"message": "Successfully enrolled in the class!", "status": "success"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error enrolling in class: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while trying to enroll.")
+    
 @router.get("/materials/{material_id}/view")
 async def get_material_view(material_id: str, current_user = Depends(get_current_user)):
     """Fetch data for the Material Viewer page (Video/Article/Question)"""

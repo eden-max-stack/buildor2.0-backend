@@ -53,90 +53,91 @@ class SubmissionResponse(BaseModel):
 # CODE EXECUTION SERVICE
 # ============================================
 
-def execute_python_code(code: str, test_input: dict, timeout: int = 5) -> dict:
+import concurrent.futures
+import traceback
+import sys
+import io
+import time
+import psutil
+import os
+import inspect
+from typing import Any
+
+def execute_python_code(code: str, test_input: dict, timeout: int = 3) -> dict:
     """
     Execute Python code with given input and return output, runtime, and memory usage.
+    Includes a non-blocking timeout to prevent infinite loops from hanging the server.
     """
-    try:
-        # Prepare execution environment
+    
+    def run_code_logic():
         exec_globals = {}
         exec_locals = {}
-        
-        # Capture stdout
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
-        
-        # Track memory before execution
-        process = psutil.Process(os.getpid())
-        mem_before = process.memory_info().rss / 1024  # KB
-        
-        # Track runtime
-        start_time = time.perf_counter()
-        
-        # Execute the code
         exec(code, exec_globals, exec_locals)
         
-        # Get the solution function.
-        # Prefer a function explicitly named 'solution' for consistency with the sandbox UI.
         solution_func = exec_locals.get("solution")
         if not callable(solution_func):
-            solution_func = None
             for name, obj in exec_locals.items():
                 if callable(obj) and not name.startswith('_'):
                     solution_func = obj
                     break
         
         if not solution_func:
-            return {
-                "success": False,
-                "error": "No solution function found in code",
-                "output": None,
-                "runtime_ms": 0,
-                "memory_kb": 0
-            }
+            raise ValueError("No solution function found in code")
         
-        # Call the function with test input
-        # Prefer mapping by function signature (kwargs) when possible.
         sig = inspect.signature(solution_func)
         param_names = [p.name for p in sig.parameters.values()]
 
-        # Filter out obvious metadata keys (seed data has input1/input2... as descriptive strings)
-        cleaned_input = {}
-        for k, v in (test_input or {}).items():
-            if isinstance(k, str) and k.lower().startswith("input") and isinstance(v, str):
-                continue
-            cleaned_input[k] = v
+        cleaned_input = {k: v for k, v in (test_input or {}).items() if not (isinstance(k, str) and k.lower().startswith("input"))}
 
-        result = None
         if cleaned_input and all(name in cleaned_input for name in param_names):
             kwargs = {name: cleaned_input[name] for name in param_names}
-            result = solution_func(**kwargs)
+            return solution_func(**kwargs)
         else:
-            # Build positional args.
-            # If inputs look like param1/param2/... order by numeric suffix.
             keys = list(cleaned_input.keys()) if cleaned_input else []
-            param_keys = [k for k in keys if isinstance(k, str) and k.lower().startswith("param") and k[5:].isdigit()]
-            if param_keys:
-                param_keys_sorted = sorted(param_keys, key=lambda x: int(str(x)[5:]))
-                args = [cleaned_input[k] for k in param_keys_sorted]
-            else:
-                args = [cleaned_input[k] for k in sorted(keys)]
-
-            # Truncate/adjust to expected arity if possible
+            args = [cleaned_input[k] for k in sorted(keys)]
             expected_arity = len(param_names)
             if expected_arity >= 0 and len(args) > expected_arity:
                 args = args[:expected_arity]
+            return solution_func(*args) if args else solution_func()
 
-            result = solution_func(*args) if args else solution_func()
+    try:
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
         
-        # Calculate runtime and memory
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss / 1024 
+        start_time = time.perf_counter()
+        
+        # THE FIX: Create executor manually, do NOT use 'with' statement
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(run_code_logic)
+        
+        try:
+            # Wait for the result for up to 'timeout' seconds
+            result = future.result(timeout=timeout) 
+            
+            # Clean up the executor safely
+            executor.shutdown(wait=False)
+            
+        except concurrent.futures.TimeoutError:
+            # Force the function to return immediately without waiting for the loop!
+            executor.shutdown(wait=False, cancel_futures=True)
+            sys.stdout = old_stdout
+            return {
+                "success": False,
+                "error": "Time Limit Exceeded (Infinite loop detected)",
+                "traceback": None,
+                "output": None,
+                "runtime_ms": timeout * 1000,
+                "memory_kb": 0
+            }
+        
         end_time = time.perf_counter()
         runtime_ms = int((end_time - start_time) * 1000)
         
-        mem_after = process.memory_info().rss / 1024  # KB
+        mem_after = process.memory_info().rss / 1024
         memory_kb = int(max(0, mem_after - mem_before))
         
-        # Restore stdout
         sys.stdout = old_stdout
         
         return {
@@ -157,7 +158,6 @@ def execute_python_code(code: str, test_input: dict, timeout: int = 5) -> dict:
             "runtime_ms": 0,
             "memory_kb": 0
         }
-
 def compare_outputs(actual: Any, expected: Any) -> bool:
     """
     Compare actual output with expected output.
