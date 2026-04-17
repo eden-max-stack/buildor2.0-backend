@@ -1,180 +1,87 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Optional, Literal
-from uuid import UUID
-from app.infrastructure.database import get_db
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional, List
+from pydantic import BaseModel
+from app.infrastructure.supabase_client import supabase
 
 router = APIRouter(prefix="/leaderboard", tags=["Leaderboard"])
 
-@router.get("/")
-def get_leaderboard(
-    ranking_type: Literal["overall", "skill", "problems"] = Query(
-        "overall",
-        description="Type of ranking: 'overall' (default rank), 'skill' (by skill level), 'problems' (by problems solved)"
-    ),
-    search: Optional[str] = Query(None, description="Search students by name"),
-    limit: int = Query(100, ge=1, le=500, description="Maximum number of students to return"),
-    db: Session = Depends(get_db)
-):
-    """
-    Get leaderboard with different ranking algorithms.
-    
-    **Ranking Types:**
-    - `overall`: Uses the pre-calculated rank from the database (based on problems solved)
-    - `skill`: Ranks by skill level (Expert > Advanced > Intermediate > Beginner), then by problems solved
-    - `problems`: Ranks purely by number of problems solved (descending)
-    
-    **Returns:**
-    - List of students with their rank, name, problems solved, skill level, and university info
-    """
-    
-    db_url = str(getattr(getattr(db, "bind", None), "url", ""))
-    if db_url.startswith("sqlite"):
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Backend is connected to SQLite, but these routes require the Supabase Postgres schema. "
-                "Start the server with DATABASE_URL set to your Supabase Postgres connection string."
-            ),
-        )
+class LeaderboardUser(BaseModel):
+    user_id: str
+    rank: int
+    name: str
+    username: str
+    score: float
+    solved: int
+    avatar: str
+    trend: str = "same" # You can calculate this later based on historical data
 
-    # Base query - get all students with their data
-    base_query = """
-        SELECT 
-            u.id,
-            u.full_name as name,
-            u.rank,
-            u.problems_solved,
-            u.skill_level,
-            u.university,
-            u.department,
-            u.avatar_url
-        FROM users u
-        WHERE u.role = 'student'
-    """
-    
-    # Add search filter if provided
-    params = {"limit": limit}
-    if search:
-        base_query += " AND LOWER(u.full_name) LIKE LOWER(:search)"
-        params["search"] = f"%{search}%"
-    
-    # Apply ranking logic based on type
-    if ranking_type == "overall":
-        # Use pre-calculated rank from database
-        # Portable replacement for "NULLS LAST": ORDER BY (rank IS NULL), rank
-        base_query += " ORDER BY (u.rank IS NULL) ASC, u.rank ASC"
-    
-    elif ranking_type == "skill":
-        # Rank by skill level (Expert > Advanced > Intermediate > Beginner)
-        # Then by problems solved as tiebreaker
-        base_query += """
-            ORDER BY 
-                CASE u.skill_level
-                    WHEN 'Expert' THEN 4
-                    WHEN 'Advanced' THEN 3
-                    WHEN 'Intermediate' THEN 2
-                    WHEN 'Beginner' THEN 1
-                    ELSE 0
-                END DESC,
-                u.problems_solved DESC,
-                u.created_at ASC
-        """
-    
-    elif ranking_type == "problems":
-        # Rank purely by problems solved
-        base_query += " ORDER BY u.problems_solved DESC, u.created_at ASC"
-    
-    # Add limit
-    base_query += " LIMIT :limit"
-    
-    # Execute query
-    result = db.execute(text(base_query), params)
-    students = result.fetchall()
-    
-    # Format response
-    leaderboard = []
-    for idx, student in enumerate(students, start=1):
-        leaderboard.append({
-            "id": str(student.id),
-            "name": student.name,
-            "rank": idx if ranking_type != "overall" else student.rank,  # Recalculate rank for non-overall views
-            "problemsSolved": student.problems_solved,
-            "skillLevel": student.skill_level,
-            "university": student.university,
-            "department": student.department,
-            "avatarUrl": student.avatar_url
-        })
-    
-    return {
-        "rankingType": ranking_type,
-        "totalStudents": len(leaderboard),
-        "students": leaderboard
-    }
+@router.get("/", response_model=List[LeaderboardUser])
+def get_leaderboard(category: str = Query("ALL", description="Tag name or ALL")):
+    try:
+        if category == "ALL":
+            # Global: Sum all scores per user
+            # FIX 1: Ask for 'email' instead of 'username'
+            skills_res = supabase.table("student_category_skills").select("user_id, score, total_solved, users(full_name, email, avatar_url)").execute()
+            
+            user_totals = {}
+            for row in skills_res.data:
+                uid = row["user_id"]
+                if uid not in user_totals:
+                    # Safely handle missing user data
+                    user_info = row.get("users") or {"full_name": "Unknown", "email": "unknown@domain.com", "avatar_url": ""}
+                    
+                    # Create a pseudo-username from the email (e.g. 'john.doe@gmail.com' -> 'john.doe')
+                    raw_email = user_info.get("email", "unknown")
+                    pseudo_username = raw_email.split("@")[0] if "@" in raw_email else "unknown"
+                    
+                    user_totals[uid] = {
+                        "user_id": uid,
+                        "name": user_info.get("full_name", "Unknown"),
+                        "username": pseudo_username,
+                        "avatar": user_info.get("avatar_url") or ("https://api.dicebear.com/7.x/avataaars/svg?seed=" + uid),
+                        "score": 0.0,
+                        "solved": 0
+                    }
+                user_totals[uid]["score"] += float(row["score"])
+                user_totals[uid]["solved"] += int(row["total_solved"])
+                
+            sorted_users = sorted(list(user_totals.values()), key=lambda x: x["score"], reverse=True)
+            
+        else:
+            # Category Specific
+            # FIX 1: Ask for 'email' instead of 'username'
+            skills_res = supabase.table("student_category_skills").select("user_id, score, total_solved, users(full_name, email, avatar_url)").eq("tag_name", category).execute()
+            
+            user_totals = []
+            for row in skills_res.data:
+                uid = row["user_id"] # FIX 2: Define uid here!
+                user_info = row.get("users") or {"full_name": "Unknown", "email": "unknown@domain.com", "avatar_url": ""}
+                
+                # Create pseudo-username
+                raw_email = user_info.get("email", "unknown")
+                pseudo_username = raw_email.split("@")[0] if "@" in raw_email else "unknown"
+                    
+                # FIX 3: Use .append() since user_totals is a list here
+                user_totals.append({ 
+                    "user_id": uid,
+                    "name": user_info.get("full_name", "Unknown"), 
+                    "username": pseudo_username,
+                    "avatar": user_info.get("avatar_url") or ("https://api.dicebear.com/7.x/avataaars/svg?seed=" + uid),
+                    "score": float(row["score"]),
+                    "solved": int(row["total_solved"])
+                })
+                
+            sorted_users = sorted(user_totals, key=lambda x: x["score"], reverse=True)
 
+        # Assign ranks
+        results = []
+        for index, user in enumerate(sorted_users):
+            user["rank"] = index + 1
+            user["trend"] = "up" if index < 3 else "same" # Placeholder logic
+            results.append(user)
+            
+        return results[:100] # Return top 100
 
-@router.get("/user/{user_id}")
-def get_user_leaderboard_position(
-    user_id: UUID,
-    db: Session = Depends(get_db)
-):
-    """
-    Get a specific user's leaderboard position and stats.
-    
-    **Returns:**
-    - User's current rank, problems solved, skill level, and other stats
-    """
-    
-    db_url = str(getattr(getattr(db, "bind", None), "url", ""))
-    if db_url.startswith("sqlite"):
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Backend is connected to SQLite, but these routes require the Supabase Postgres schema. "
-                "Start the server with DATABASE_URL set to your Supabase Postgres connection string."
-            ),
-        )
-
-    query = text("""
-        SELECT 
-            u.id,
-            u.full_name as name,
-            u.rank,
-            u.problems_solved,
-            u.skill_level,
-            u.university,
-            u.department,
-            u.avatar_url,
-            (
-                SELECT COUNT(*) 
-                FROM user_question_progress uqp 
-                WHERE uqp.user_id = u.id AND uqp.status = 'solved'
-            ) as total_solved,
-            (
-                SELECT COUNT(*) 
-                FROM questions q 
-                WHERE q.is_active = true
-            ) as total_questions
-        FROM users u
-        WHERE u.id = :user_id AND u.role = 'student'
-    """)
-    
-    result = db.execute(query, {"user_id": str(user_id)})
-    user = result.fetchone()
-    
-    if not user:
-        return {"error": "User not found or not a student"}
-    
-    return {
-        "id": str(user.id),
-        "name": user.name,
-        "rank": user.rank,
-        "problemsSolved": user.problems_solved,
-        "skillLevel": user.skill_level,
-        "university": user.university,
-        "department": user.department,
-        "avatarUrl": user.avatar_url,
-        "totalQuestions": user.total_questions,
-        "completionRate": round((user.total_solved / user.total_questions * 100), 2) if user.total_questions > 0 else 0
-    }
+    except Exception as e:
+        print(f"Leaderboard error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

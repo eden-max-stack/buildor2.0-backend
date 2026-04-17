@@ -131,7 +131,8 @@ def _extract_buggy_token_from_line(line: str) -> str:
     return m[-1] if m else "?"
 
 
-def generate_hint_pipeline(buggy_code, correct_code=None, tests_failed_ratio=0.5, skill_level="medium"):
+def generate_hint_pipeline(buggy_code, correct_code=None, tests_failed_ratio=0.5, skill_level="medium", question_difficulty="Medium",  # NEW
+    hints_used=0):
     """
     Complete 5-layer hint generation pipeline.
     
@@ -249,6 +250,8 @@ def generate_hint_pipeline(buggy_code, correct_code=None, tests_failed_ratio=0.5
         tests_failed_ratio=tests_failed_ratio,
         model_confidence=confidence,
         skill_level=skill_level,
+        question_difficulty=question_difficulty,  # NEW
+        hints_used=hints_used                     # NEW
     )
 
     hint_style = fuzzy_result.hint_style
@@ -295,6 +298,8 @@ def generate_hint_pipeline(buggy_code, correct_code=None, tests_failed_ratio=0.5
         "inputs": {
             "tests_failed_ratio": tests_failed_ratio,
             "skill_level": skill_level,
+            "question_difficulty": question_difficulty, # NEW
+            "hints_used": hints_used
         }
     }
 
@@ -316,8 +321,10 @@ def add(a, b):
     result1 = generate_hint_pipeline(
         buggy_code=buggy_code_1,
         correct_code=correct_code_1,
-        tests_failed_ratio=1.0,  # All tests failed
-        skill_level="medium"
+        tests_failed_ratio=1.0,  
+        skill_level="low",                 # Low skill
+        question_difficulty="Hard",        # Hard question -> "under_leveled" gap
+        hints_used=0                       # 0 hints -> expects "aggressive"
     )
     
     print("EXAMPLE 2: Logic Error (wrong comparison)")
@@ -339,8 +346,10 @@ def is_positive(x):
     result2 = generate_hint_pipeline(
         buggy_code=buggy_code_2,
         correct_code=correct_code_2,
-        tests_failed_ratio=0.5,  # Half tests failed
-        skill_level="low"
+        tests_failed_ratio=1.0,  
+        skill_level="low",
+        question_difficulty="Hard", 
+        hints_used=3                       # 3 hints triggers Ceiling Rule -> expects "gentle"
     )
     
     print("EXAMPLE 3: No Reference Code (Real-world scenario)")
@@ -363,7 +372,9 @@ def factorial(n):
         buggy_code=buggy_code_3,
         correct_code=correct_code_3,
         tests_failed_ratio=0.8,
-        skill_level="high"
+        skill_level="high",                # High skill
+        question_difficulty="Easy",        # Easy question -> "over_leveled" gap
+        hints_used=1                       # Expects "moderate" or "gentle"
     )
     
     print("Pipeline demonstration complete!")

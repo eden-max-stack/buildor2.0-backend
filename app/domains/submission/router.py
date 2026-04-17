@@ -13,6 +13,7 @@ import time
 import psutil
 import os
 import inspect
+import datetime
 from app.infrastructure.supabase_client import supabase
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
@@ -48,20 +49,15 @@ class SubmissionResponse(BaseModel):
     test_results: List[TestCaseResult]
     error_message: Optional[str]
     submitted_at: str
+    # NEW: Optional fields for frontend toast notifications
+    xp_earned: Optional[float] = None
+    new_skill_tier: Optional[str] = None
 
 # ============================================
 # CODE EXECUTION SERVICE
 # ============================================
 
 import concurrent.futures
-import traceback
-import sys
-import io
-import time
-import psutil
-import os
-import inspect
-from typing import Any
 
 def execute_python_code(code: str, test_input: dict, timeout: int = 3) -> dict:
     """
@@ -108,19 +104,14 @@ def execute_python_code(code: str, test_input: dict, timeout: int = 3) -> dict:
         mem_before = process.memory_info().rss / 1024 
         start_time = time.perf_counter()
         
-        # THE FIX: Create executor manually, do NOT use 'with' statement
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         future = executor.submit(run_code_logic)
         
         try:
-            # Wait for the result for up to 'timeout' seconds
             result = future.result(timeout=timeout) 
-            
-            # Clean up the executor safely
             executor.shutdown(wait=False)
             
         except concurrent.futures.TimeoutError:
-            # Force the function to return immediately without waiting for the loop!
             executor.shutdown(wait=False, cancel_futures=True)
             sys.stdout = old_stdout
             return {
@@ -158,13 +149,9 @@ def execute_python_code(code: str, test_input: dict, timeout: int = 3) -> dict:
             "runtime_ms": 0,
             "memory_kb": 0
         }
+
 def compare_outputs(actual: Any, expected: Any) -> bool:
-    """
-    Compare actual output with expected output.
-    Handles different data types and nested structures.
-    """
     if type(actual) != type(expected):
-        # Try converting if types don't match
         try:
             if isinstance(expected, (int, float)):
                 actual = type(expected)(actual)
@@ -174,7 +161,6 @@ def compare_outputs(actual: Any, expected: Any) -> bool:
             return False
     
     if isinstance(expected, float):
-        # For floats, use approximate comparison
         return abs(actual - expected) < 1e-6
     elif isinstance(expected, (list, tuple)):
         if len(actual) != len(expected):
@@ -188,16 +174,21 @@ def compare_outputs(actual: Any, expected: Any) -> bool:
         return actual == expected
 
 
-@router.post("/", status_code=201)
+@router.post("/", status_code=201, response_model=SubmissionResponse)
 def submit_code(submission: SubmissionCreate): 
     """
     Submit code for a question and execute it against test cases.
     """
     try:
-        # 1. Verify question exists
-        q_res = supabase.table("questions").select("question_id").eq("question_id", submission.question_id).execute()
+        # 1. Verify question exists & fetch difficulty + tags for XP calc
+        q_res = supabase.table("questions").select("question_id, difficulty, tags").eq("question_id", submission.question_id).execute()
         if not q_res.data:
             raise HTTPException(status_code=404, detail="Question not found")
+        
+        question_data = q_res.data[0]
+        difficulty = question_data.get("difficulty", "Medium")
+        tags = question_data.get("tags", [])
+        primary_tag = tags[0] if tags else "general"
 
         # 2. Verify user exists
         u_res = supabase.table("users").select("user_id").eq("user_id", submission.user_id).execute()
@@ -225,11 +216,9 @@ def submit_code(submission: SubmissionCreate):
             tc_expected = tc["expected_output"]
             tc_is_sample = tc["is_sample"]
             
-            # Execute code
             exec_result = execute_python_code(submission.code, tc_input)
             
             if exec_result["success"]:
-                # Compare output
                 passed = compare_outputs(exec_result["output"], tc_expected)
                 
                 if passed:
@@ -250,7 +239,6 @@ def submit_code(submission: SubmissionCreate):
                 total_runtime += exec_result["runtime_ms"]
                 total_memory += exec_result["memory_kb"]
             else:
-                # Runtime error
                 overall_status = "runtime_error"
                 error_message = exec_result["error"]
                 
@@ -263,8 +251,8 @@ def submit_code(submission: SubmissionCreate):
                     "error_message": exec_result["error"],
                     "is_sample": tc_is_sample
                 })
-                break  # Stop on first error
-        # Calculate average runtime and memory
+                break
+        
         avg_runtime = total_runtime // len(test_results) if test_results else 0
         avg_memory = total_memory // len(test_results) if test_results else 0
         
@@ -273,13 +261,84 @@ def submit_code(submission: SubmissionCreate):
             "question_id": submission.question_id,
             "user_id": submission.user_id,
             "submitted_code": submission.code,
-            # THE FIX: Add .upper() so it matches your Postgres ENUM!
             "status": overall_status.upper(), 
             "runtime_ms": avg_runtime,
             "memory_kb": avg_memory
         }).execute()
         
         sub_data = sub_res.data[0]
+
+        # 6. XP System & Skill Tier Logic (Only if accepted)
+        earned_xp = 0.0
+        new_tier = None
+
+        if overall_status == "accepted":
+            # Fetch telemetry to see if this is their first time solving it
+            telemetry_res = supabase.table("student_question_telemetry").select("hints_used, is_solved").eq("user_id", submission.user_id).eq("question_id", submission.question_id).execute()
+            
+            is_solved = False
+            hints_used = 0
+            if telemetry_res.data:
+                is_solved = telemetry_res.data[0].get("is_solved", False)
+                hints_used = telemetry_res.data[0].get("hints_used", 0)
+
+            # Prevent XP farming on already solved questions
+            if not is_solved:
+                # XP Base Values
+                base_xp_map = {"Easy": 10, "Medium": 30, "Hard": 60}
+                base_xp = base_xp_map.get(difficulty, 30)
+
+                # Hint Penalty Multipliers
+                if hints_used == 0:
+                    multiplier = 1.0
+                elif hints_used == 1:
+                    multiplier = 0.8
+                elif hints_used == 2:
+                    multiplier = 0.5
+                else:
+                    multiplier = 0.2
+
+                earned_xp = base_xp * multiplier
+
+                # Fetch current skill score for this category
+                skill_res = supabase.table("student_category_skills").select("score, total_solved").eq("user_id", submission.user_id).eq("tag_name", primary_tag).execute()
+                
+                current_score = 0.0
+                total_solved = 0
+                
+                if skill_res.data:
+                    current_score = float(skill_res.data[0].get("score", 0))
+                    total_solved = skill_res.data[0].get("total_solved", 0)
+
+                new_score = current_score + earned_xp
+                new_total_solved = total_solved + 1
+
+                # Determine Tier Thresholds
+                if new_score < 150:
+                    new_tier = "beginner"
+                elif new_score < 500:
+                    new_tier = "intermediate"
+                else:
+                    new_tier = "advanced"
+
+                # Update Category Skills Table
+                supabase.table("student_category_skills").upsert({
+                    "user_id": submission.user_id,
+                    "tag_name": primary_tag,
+                    "skill_level": new_tier,
+                    "total_solved": new_total_solved,
+                    "score": new_score,
+                    "updated_at": datetime.datetime.now().isoformat()
+                }).execute()
+
+                # Update Telemetry (Mark as solved)
+                supabase.table("student_question_telemetry").upsert({
+                    "user_id": submission.user_id,
+                    "question_id": submission.question_id,
+                    "hints_used": hints_used,
+                    "is_solved": True,
+                    "solved_at": datetime.datetime.now().isoformat()
+                }).execute()
         
         return {
             "id": sub_data["submission_id"],
@@ -292,10 +351,11 @@ def submit_code(submission: SubmissionCreate):
             "memory_kb": avg_memory,
             "test_results": test_results,
             "error_message": error_message,
-            "submitted_at": sub_data["submitted_at"]
+            "submitted_at": sub_data["submitted_at"],
+            "xp_earned": round(earned_xp, 2) if earned_xp > 0 else None,
+            "new_skill_tier": new_tier
         }
 
     except Exception as e:
-        # This will print the EXACT Supabase error dictionary to your terminal
         print(f"Failed to execute submission: {repr(e)}") 
         raise HTTPException(status_code=500, detail=str(e))
